@@ -18,16 +18,21 @@ export class StaticWebsiteStack extends cdk.Stack {
     const globalConfig = new stackConfig.StaticWebsiteConfig();
 
     // log configuration for debug
-    console.log('debug', globalConfig.config);
+    // console.log('debug', globalConfig.config);
 
     // create artifact bucket
-    var artifactBucket = new s3.Bucket(this, "artifactBucket", {});
+    var artifactBucket = new s3.Bucket(this, "artifactBucket", {
+      bucketName: globalConfig.config["DomainName"] + "-artifact"
+    });
 
     // create content bucket
-    var contentBucket = new s3.Bucket(this, "contentBucket", {});
+    var contentBucket = new s3.Bucket(this, "contentBucket", {
+      bucketName: globalConfig.config["DomainName"] + "-content"
+    });
 
     // create content bucket
     var loggingBucket = new s3.Bucket(this, "loggingBucket", {
+      bucketName: globalConfig.config["DomainName"] + "-logging",
       publicReadAccess: false
     });
 
@@ -59,7 +64,7 @@ export class StaticWebsiteStack extends cdk.Stack {
 
     // create codebuild project
     var codeBuildProject = new codebuild.CfnProject(this, "codeBuildProject", {
-      serviceRole: codeBuildServiceRole.roleArn,
+      serviceRole: codeBuildServiceRole.roleArn.toString(),
       artifacts: {
         type: "CODEPIPELINE",
       },
@@ -106,7 +111,7 @@ export class StaticWebsiteStack extends cdk.Stack {
                   "codecommit:GetUploadArchiveStatus",
                   "codecommit:UploadArchive"
                 ],
-                "Resource": gitRepository.repositoryArn
+                "Resource": gitRepository.repositoryArn.toString()
               },
               {
                 "Effect": "Allow",
@@ -116,7 +121,7 @@ export class StaticWebsiteStack extends cdk.Stack {
                   "s3:PutObject"
                 ],
                 "Resource": [
-                  gitRepository.repositoryArn + "/*"
+                  gitRepository.repositoryArn.toString() + "/*"
                 ]
               },
               {
@@ -125,7 +130,7 @@ export class StaticWebsiteStack extends cdk.Stack {
                   "codebuild:BatchGetBuilds",
                   "codebuild:StartBuild"
                 ],
-                "Resource": codeBuildProject.projectArn
+                "Resource": codeBuildProject.projectArn.toString()
               },
               {
                 "Effect": "Allow",
@@ -134,7 +139,7 @@ export class StaticWebsiteStack extends cdk.Stack {
                   "s3:DeleteObject"
                 ],
                 "Resource": [
-                  contentBucket.bucketArn,
+                  contentBucket.bucketArn.toString(),
                   contentBucket + "/*"
                 ]
               }
@@ -146,10 +151,10 @@ export class StaticWebsiteStack extends cdk.Stack {
 
     // create pipeline
     var pipeline = new codepipeline.CfnPipeline(this, "pipeline", {
-      roleArn: pipelineServiceRole.roleArn,
+      roleArn: pipelineServiceRole.roleArn.toString(),
       artifactStore: {
         type: "s3",
-        location: artifactBucket.bucketArn
+        location: artifactBucket.bucketArn.toString()
       },
       stages: [
         {
@@ -216,7 +221,7 @@ export class StaticWebsiteStack extends cdk.Stack {
                 version: "1"
               },
               configuration: {
-                "BucketName": "ContentBucket",
+                "BucketName": contentBucket.bucketName,
                 "Extract": true
               },
               inputArtifacts: [
@@ -259,7 +264,7 @@ export class StaticWebsiteStack extends cdk.Stack {
                 "Action": [
                   "codepipeline:StartPipelineExecution"
                 ],
-                "Resource": pipeline.getAtt("arn")
+                "Resource": "arn:aws:codepipeline:" + this.region + ":" + this.accountId + ":" + pipeline.pipelineName
               }
             ]
           }
@@ -268,7 +273,7 @@ export class StaticWebsiteStack extends cdk.Stack {
     });
 
     // create event rule
-    var eventRule = new events.CfnRule(this, "commitEvent", {
+    new events.CfnRule(this, "commitEvent", {
       eventPattern: {
         "source": [
           "aws.codecommit"
@@ -277,7 +282,7 @@ export class StaticWebsiteStack extends cdk.Stack {
           "CodeCommit Repository State Change"
         ],
         "resources": [
-          gitRepository.repositoryArn
+          gitRepository.repositoryArn.toString()
         ],
         "detail": {
           "event": [
@@ -294,15 +299,15 @@ export class StaticWebsiteStack extends cdk.Stack {
       },
       targets: [
         {
-          arn: pipeline.getAtt("arn").toString(),
-          roleArn: triggerServiceRole.roleArn,
-          id: pipeline.getAtt("arn") + "-runner"
+          arn: "arn:aws:codepipeline:" + this.region + ":" + this.accountId + ":" + pipeline.pipelineName,
+          roleArn: triggerServiceRole.roleArn.toString(),
+          id: "arn:aws:codepipeline:" + this.region + ":" + this.accountId + ":" + pipeline.pipelineName + "-runner"
         }
       ]
     });
 
     // create code build service role
-    var codeBuildServiceRolePolicy = new iam.CfnPolicy(this, "codeBuildServiceRolePolicy", {
+    new iam.CfnPolicy(this, "codeBuildServiceRolePolicy", {
       policyName: "CodeBuildTrustPolicy",
       policyDocument: {
         "Version": "2012-10-17",
@@ -327,13 +332,13 @@ export class StaticWebsiteStack extends cdk.Stack {
               "s3:PutObject"
             ],
             "Resource": [
-              artifactBucket.bucketArn + "/*"
+              artifactBucket.bucketArn.toString() + "/*"
             ]
           }
         ]
       },
       roles: [
-        codeBuildServiceRole.roleArn
+        codeBuildServiceRole.roleArn.toString()
       ]
     });
 
@@ -376,7 +381,7 @@ export class StaticWebsiteStack extends cdk.Stack {
           },
           viewerProtocolPolicy: "redirect-to-https"
         },
-        priceClass: "CDNPriceClass",
+        priceClass: globalConfig.config["CDNPriceClass"],
         viewerCertificate: {
           acmCertificateArn: globalConfig.config["CDNCertificateArn"],
           sslSupportMethod: "sni-only"
@@ -386,7 +391,7 @@ export class StaticWebsiteStack extends cdk.Stack {
 
     // content bucket policy
     new s3.CfnBucketPolicy(this, "contentBucketPolicy", {
-      bucket: contentBucket.bucketArn,
+      bucket: contentBucket.bucketName,
       policyDocument: {
         "Statement": [
           {
@@ -394,7 +399,7 @@ export class StaticWebsiteStack extends cdk.Stack {
               "s3:GetObject"
             ],
             "Effect": "Allow",
-            "Resource": contentBucket.bucketArn + "/*",
+            "Resource": contentBucket.bucketArn.toString() + "/*",
             "Principal": {
               "AWS": "arn:aws:iam::cloudfront:user/CloudFront Origin Access Identity " + contentCDNOAI.logicalId
             }
