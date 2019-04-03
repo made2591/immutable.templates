@@ -15,6 +15,14 @@
     "aws-cdk": "^0.27.0"
   },
   "dependencies": {
+    "@aws-cdk/aws-cloudfront": "^0.27.0",
+    "@aws-cdk/aws-codebuild": "^0.27.0",
+    "@aws-cdk/aws-codecommit": "^0.27.0",
+    "@aws-cdk/aws-codepipeline": "^0.27.0",
+    "@aws-cdk/aws-events": "^0.27.0",
+    "@aws-cdk/aws-iam": "^0.27.0",
+    "@aws-cdk/aws-route53": "^0.27.0",
+    "@aws-cdk/aws-s3": "^0.27.0",
     "@aws-cdk/cdk": "^0.27.0",
     "source-map-support": "^0.5.9"
   }
