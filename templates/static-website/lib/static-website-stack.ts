@@ -307,7 +307,7 @@ export class StaticWebsiteStack extends cdk.Stack {
         {
           arn: "arn:aws:codepipeline:" + this.region + ":" + this.accountId + ":" + pipeline.pipelineName,
           roleArn: triggerServiceRole.roleArn.toString(),
-          id: "arn:aws:codepipeline:" + this.region + ":" + this.accountId + ":" + pipeline.pipelineName + "-runner"
+          id: pipeline.pipelineName + "-runner"
         }
       ]
     });
