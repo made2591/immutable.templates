@@ -19,6 +19,11 @@ export class StaticWebsiteStack extends cdk.Stack {
 
     // log configuration for debug
     // console.log('debug', globalConfig.config);
+    globalConfig.config["HostedZoneId"] = "YOUR_HOSTED_ZONE_ID"
+    globalConfig.config["DomainName"] = "YOUR_DOMAIN_NAME"
+    globalConfig.config["CodeBuildImage"] = "YOUR_CODE_BUILD_IMAGE" // aws/codebuild/ruby:2.5.3 for Jekyll
+    globalConfig.config["CDNCertificateArn"] = "YOUR_CDN_CERTIFICATE_ARN" // created in Virginia
+    globalConfig.config["CDNPriceClass"] = "YOUR_CDN_PRICE_CLASS"
 
     // create artifact bucket
     var artifactBucket = new s3.Bucket(this, "artifactBucket", {
@@ -59,7 +64,8 @@ export class StaticWebsiteStack extends cdk.Stack {
             ]
           }
         ]
-      }
+      },
+      roleName: "CodeBuildServiceRole"
     });
 
     // create codebuild project
@@ -140,7 +146,7 @@ export class StaticWebsiteStack extends cdk.Stack {
                 ],
                 "Resource": [
                   contentBucket.bucketArn.toString(),
-                  contentBucket + "/*"
+                  contentBucket.bucketArn.toString() + "/*"
                 ]
               }
             ]
@@ -153,8 +159,8 @@ export class StaticWebsiteStack extends cdk.Stack {
     var pipeline = new codepipeline.CfnPipeline(this, "pipeline", {
       roleArn: pipelineServiceRole.roleArn.toString(),
       artifactStore: {
-        type: "s3",
-        location: artifactBucket.bucketArn.toString()
+        type: "S3",
+        location: artifactBucket.bucketName.toString()
       },
       stages: [
         {
@@ -221,7 +227,7 @@ export class StaticWebsiteStack extends cdk.Stack {
                 version: "1"
               },
               configuration: {
-                "BucketName": contentBucket.bucketName,
+                "BucketName": contentBucket.bucketName.toString(),
                 "Extract": true
               },
               inputArtifacts: [
@@ -307,7 +313,7 @@ export class StaticWebsiteStack extends cdk.Stack {
     });
 
     // create code build service role
-    new iam.CfnPolicy(this, "codeBuildServiceRolePolicy", {
+    new iam.CfnPolicy(this, "codeBuildTrustPolicy", {
       policyName: "CodeBuildTrustPolicy",
       policyDocument: {
         "Version": "2012-10-17",
@@ -338,7 +344,7 @@ export class StaticWebsiteStack extends cdk.Stack {
         ]
       },
       roles: [
-        codeBuildServiceRole.roleArn.toString()
+        codeBuildServiceRole.roleName.toString()
       ]
     });
 
@@ -360,7 +366,7 @@ export class StaticWebsiteStack extends cdk.Stack {
             domainName: contentBucket.domainName,
             id: "ContentBucketOrigin",
             s3OriginConfig: {
-              originAccessIdentity: "origin-access-identity/cloudfront/" + contentCDNOAI.logicalId
+              originAccessIdentity: "origin-access-identity/cloudfront/" + contentCDNOAI.ref
             }
           }
         ],
@@ -391,7 +397,7 @@ export class StaticWebsiteStack extends cdk.Stack {
 
     // content bucket policy
     new s3.CfnBucketPolicy(this, "contentBucketPolicy", {
-      bucket: contentBucket.bucketName,
+      bucket: contentBucket.bucketName.toString(),
       policyDocument: {
         "Statement": [
           {
@@ -401,7 +407,7 @@ export class StaticWebsiteStack extends cdk.Stack {
             "Effect": "Allow",
             "Resource": contentBucket.bucketArn.toString() + "/*",
             "Principal": {
-              "AWS": "arn:aws:iam::cloudfront:user/CloudFront Origin Access Identity " + contentCDNOAI.logicalId
+              "AWS": "arn:aws:iam::cloudfront:user/CloudFront Origin Access Identity " + contentCDNOAI.ref
             }
           }
         ]
