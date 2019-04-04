@@ -5,8 +5,9 @@ import codecommit = require('@aws-cdk/aws-codecommit');
 import codepipeline = require("@aws-cdk/aws-codepipeline");
 import events = require("@aws-cdk/aws-events");
 import iam = require("@aws-cdk/aws-iam");
-import s3 = require('@aws-cdk/aws-s3');
+//import lambda = require('@aws-cdk/aws-lambda');
 import route53 = require('@aws-cdk/aws-route53');
+import s3 = require('@aws-cdk/aws-s3');
 
 import stackConfig = require("./static-website-config");
 
@@ -26,19 +27,48 @@ export class StaticWebsiteStack extends cdk.Stack {
     globalConfig.config["CDNPriceClass"] = "YOUR_CDN_PRICE_CLASS"
 
     // create artifact bucket
-    var artifactBucket = new s3.Bucket(this, "artifactBucket", {
-      bucketName: globalConfig.config["DomainName"] + "-artifact"
+    var artifactBucket = new s3.CfnBucket(this, "artifactBucket", {
+      bucketEncryption: {
+        serverSideEncryptionConfiguration: [
+          {
+            serverSideEncryptionByDefault: {
+              sseAlgorithm: "AES256"
+            }
+          }
+        ]
+      },
+      accessControl: "Private"
     });
 
     // create content bucket
-    var contentBucket = new s3.Bucket(this, "contentBucket", {
-      bucketName: globalConfig.config["DomainName"] + "-content"
+    var contentBucket = new s3.CfnBucket(this, "contentBucket", {
+      corsConfiguration: {
+        corsRules: [
+          {
+            allowedOrigins: ["*"],
+            allowedMethods: ["GET"],
+            maxAge: 3000,
+            allowedHeaders: ["Authorization", "Content-Length"]
+          }
+        ]
+      },
+      websiteConfiguration: {
+        indexDocument: "index.html"
+      }
     });
 
     // create content bucket
-    var loggingBucket = new s3.Bucket(this, "loggingBucket", {
-      bucketName: globalConfig.config["DomainName"] + "-logging",
-      publicReadAccess: false
+    var loggingBucket = new s3.CfnBucket(this, "loggingBucket", {
+      bucketEncryption: {
+        serverSideEncryptionConfiguration: [
+          {
+            serverSideEncryptionByDefault: {
+              sseAlgorithm: "AES256"
+            }
+          }
+        ]
+      },
+      accessControl: "Private"
     });
 
     // create git repository to store artifact
@@ -127,7 +157,7 @@ export class StaticWebsiteStack extends cdk.Stack {
                   "s3:PutObject"
                 ],
                 "Resource": [
-                  gitRepository.repositoryArn.toString() + "/*"
+                  artifactBucket.bucketArn.toString() + "/*"
                 ]
               },
               {
@@ -200,7 +230,7 @@ export class StaticWebsiteStack extends cdk.Stack {
                   version: "1"
                 },
                 configuration: {
-                  "ProjectName": "CodeBuildProject"
+                  "ProjectName": codeBuildProject.projectName
                 },
                 inputArtifacts: [
                   {
@@ -363,10 +393,11 @@ export class StaticWebsiteStack extends cdk.Stack {
         ],
         origins: [
           {
-            domainName: contentBucket.domainName,
+            domainName: cdk.Fn.select(2, cdk.Fn.split("/", contentBucket.bucketWebsiteUrl)),
             id: "ContentBucketOrigin",
-            s3OriginConfig: {
-              originAccessIdentity: "origin-access-identity/cloudfront/" + contentCDNOAI.ref
+            customOriginConfig: {
+              httpsPort: 443,
+              originProtocolPolicy: "https-only"
             }
           }
         ],
@@ -376,7 +407,7 @@ export class StaticWebsiteStack extends cdk.Stack {
         defaultRootObject: "index.html",
         logging: {
           includeCookies: false,
-          bucket: loggingBucket.domainName,
+          bucket: loggingBucket.bucketDomainName,
           prefix: "logging"
         },
         defaultCacheBehavior: {
@@ -409,10 +440,17 @@ export class StaticWebsiteStack extends cdk.Stack {
             "Principal": {
               "AWS": "arn:aws:iam::cloudfront:user/CloudFront Origin Access Identity " + contentCDNOAI.ref
             }
+          },
+          {
+            "Action": [
+              "s3:GetObject"
+            ],
+            "Effect": "Allow",
+            "Resource": contentBucket.bucketArn.toString() + "/*",
+            "Principal": "*"
           }
         ]
-      },
-
+      }
     })
 
     // create content record set group
@@ -430,6 +468,12 @@ export class StaticWebsiteStack extends cdk.Stack {
       ]
     })
 
+    // new lambda.CfnFunction(this, "cacheInvalidation", {
+
+    // });
+
+    // cloudfront:CreateInvalidation
+    // codepipeline:PutJobSuccessResult
 
 
   }
