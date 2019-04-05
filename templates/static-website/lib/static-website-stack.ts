@@ -5,11 +5,12 @@ import codecommit = require('@aws-cdk/aws-codecommit');
 import codepipeline = require("@aws-cdk/aws-codepipeline");
 import events = require("@aws-cdk/aws-events");
 import iam = require("@aws-cdk/aws-iam");
-//import lambda = require('@aws-cdk/aws-lambda');
+import lambda = require('@aws-cdk/aws-lambda');
 import route53 = require('@aws-cdk/aws-route53');
 import s3 = require('@aws-cdk/aws-s3');
 
 import stackConfig = require("./static-website-config");
+import { PolicyStatement, PolicyStatementEffect } from '@aws-cdk/aws-iam';
 
 export class StaticWebsiteStack extends cdk.Stack {
   constructor(scope: cdk.Construct, id: string, props?: cdk.StackProps) {
@@ -185,6 +186,77 @@ export class StaticWebsiteStack extends cdk.Stack {
       ]
     })
 
+    // create origin access identity
+    var contentCDNOAI = new cloudfront.CfnCloudFrontOriginAccessIdentity(this, "contentCDNOAI", {
+      cloudFrontOriginAccessIdentityConfig: {
+        comment: globalConfig.config["DomainName"]
+      }
+    })
+
+    // create content CDN
+    var contentCDN = new cloudfront.CfnDistribution(this, "contentCDN", {
+      distributionConfig: {
+        aliases: [
+          globalConfig.config["DomainName"]
+        ],
+        origins: [
+          {
+            domainName: cdk.Fn.select(2, cdk.Fn.split("/", contentBucket.bucketWebsiteUrl)),
+            id: "ContentBucketOrigin",
+            customOriginConfig: {
+              httpPort: 80,
+              httpsPort: 443,
+              originProtocolPolicy: "http-only"
+            }
+          }
+        ],
+        enabled: true,
+        httpVersion: "http2",
+        comment: "CDN for content bucket",
+        defaultRootObject: "index.html",
+        logging: {
+          includeCookies: false,
+          bucket: loggingBucket.bucketDomainName,
+          prefix: "logging"
+        },
+        defaultCacheBehavior: {
+          targetOriginId: "ContentBucketOrigin",
+          compress: true,
+          forwardedValues: {
+            queryString: false
+          },
+          viewerProtocolPolicy: "redirect-to-https"
+        },
+        priceClass: globalConfig.config["CDNPriceClass"],
+        viewerCertificate: {
+          acmCertificateArn: globalConfig.config["CDNCertificateArn"],
+          sslSupportMethod: "sni-only"
+        }
+      }
+    });
+
+    // invalidation lambda
+    var policyStatementForLogs = new PolicyStatement(PolicyStatementEffect.Allow);
+    policyStatementForLogs.addAction("logs:*")
+    policyStatementForLogs.addResource("arn:aws:logs:*:*:*")
+
+    var policyStatementForCloudfront = new PolicyStatement(PolicyStatementEffect.Allow);
+    policyStatementForCloudfront.addActions(
+      "codepipeline:PutJobSuccessResult",
+      "codepipeline:PutJobFailureResult"
+    )
+    policyStatementForCloudfront.addResource("*")
+
+    var invalidationLambda = new lambda.Function(this, "invalidationLambda", {
+      runtime: lambda.Runtime.NodeJS810,
+      handler: 'index.handler',
+      code: lambda.Code.asset("./lib/invalidation-lambda"),
+      environment: {
+        "DISTRIBUTION_ID": contentCDN.distributionId
+      },
+      initialPolicy: [policyStatementForLogs, policyStatementForCloudfront]
+    })
+
     // create pipeline
     var pipeline = new codepipeline.CfnPipeline(this, "pipeline", {
       roleArn: pipelineServiceRole.roleArn.toString(),
@@ -267,6 +339,25 @@ export class StaticWebsiteStack extends cdk.Stack {
               ]
             }
           ]
+        },
+        {
+          name: "Invalidation",
+          actions: [
+            {
+              name: "Invalidation",
+              actionTypeId: {
+                category: "Invoke",
+                owner: "AWS",
+                provider: "Lambda",
+                version: "1",
+              },
+              inputArtifacts: [],
+              outputArtifacts: [],
+              configuration: {
+                "FunctionName": invalidationLambda.functionName.toString()
+              }
+            }
+          ]
         }
       ]
     });
@@ -309,7 +400,7 @@ export class StaticWebsiteStack extends cdk.Stack {
     });
 
     // create event rule
-    new events.CfnRule(this, "commitEvent", {
+    new events.CfnRule(this, "trigger", {
       eventPattern: {
         "source": [
           "aws.codecommit"
@@ -343,8 +434,8 @@ export class StaticWebsiteStack extends cdk.Stack {
     });
 
     // create code build service role
-    new iam.CfnPolicy(this, "codeBuildTrustPolicy", {
-      policyName: "CodeBuildTrustPolicy",
+    new iam.CfnPolicy(this, "codeBuildServiceRolePolicy", {
+      policyName: "CodeBuildServiceRolePolicy",
       policyDocument: {
         "Version": "2012-10-17",
         "Statement": [
@@ -376,54 +467,6 @@ export class StaticWebsiteStack extends cdk.Stack {
       roles: [
         codeBuildServiceRole.roleName.toString()
       ]
-    });
-
-    // create origin access identity
-    var contentCDNOAI = new cloudfront.CfnCloudFrontOriginAccessIdentity(this, "contentCDNOAI", {
-      cloudFrontOriginAccessIdentityConfig: {
-        comment: globalConfig.config["DomainName"]
-      }
-    })
-
-    // create content CDN
-    var contentCDN = new cloudfront.CfnDistribution(this, "contentCDN", {
-      distributionConfig: {
-        aliases: [
-          globalConfig.config["DomainName"]
-        ],
-        origins: [
-          {
-            domainName: cdk.Fn.select(2, cdk.Fn.split("/", contentBucket.bucketWebsiteUrl)),
-            id: "ContentBucketOrigin",
-            customOriginConfig: {
-              httpsPort: 443,
-              originProtocolPolicy: "https-only"
-            }
-          }
-        ],
-        enabled: true,
-        httpVersion: "http2",
-        comment: "CDN for content bucket",
-        defaultRootObject: "index.html",
-        logging: {
-          includeCookies: false,
-          bucket: loggingBucket.bucketDomainName,
-          prefix: "logging"
-        },
-        defaultCacheBehavior: {
-          targetOriginId: "ContentBucketOrigin",
-          compress: true,
-          forwardedValues: {
-            queryString: false
-          },
-          viewerProtocolPolicy: "redirect-to-https"
-        },
-        priceClass: globalConfig.config["CDNPriceClass"],
-        viewerCertificate: {
-          acmCertificateArn: globalConfig.config["CDNCertificateArn"],
-          sslSupportMethod: "sni-only"
-        }
-      }
     });
 
     // content bucket policy
