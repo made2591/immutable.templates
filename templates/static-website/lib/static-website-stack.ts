@@ -1,31 +1,26 @@
 import cdk = require('@aws-cdk/cdk');
 import cloudfront = require('@aws-cdk/aws-cloudfront');
 import codebuild = require('@aws-cdk/aws-codebuild');
-import codecommit = require('@aws-cdk/aws-codecommit');
 import codepipeline = require("@aws-cdk/aws-codepipeline");
-import events = require("@aws-cdk/aws-events");
 import iam = require("@aws-cdk/aws-iam");
 import lambda = require('@aws-cdk/aws-lambda');
 import route53 = require('@aws-cdk/aws-route53');
 import s3 = require('@aws-cdk/aws-s3');
 
-import stackConfig = require("./static-website-config");
 import { PolicyStatement, PolicyStatementEffect } from '@aws-cdk/aws-iam';
 
 export class StaticWebsiteStack extends cdk.Stack {
   constructor(scope: cdk.Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    // create global configuration
-    const globalConfig = new stackConfig.StaticWebsiteConfig();
-
-    // log configuration for debug
-    // console.log('debug', globalConfig.config);
-    globalConfig.config["HostedZoneId"] = "YOUR_HOSTED_ZONE_ID"
-    globalConfig.config["DomainName"] = "YOUR_DOMAIN_NAME"
-    globalConfig.config["CodeBuildImage"] = "YOUR_CODE_BUILD_IMAGE" // aws/codebuild/ruby:2.5.3 for Jekyll
-    globalConfig.config["CDNCertificateArn"] = "YOUR_CDN_CERTIFICATE_ARN" // created in Virginia
-    globalConfig.config["CDNPriceClass"] = "YOUR_CDN_PRICE_CLASS"
+    const hostedZoneId = process.env.HOSTED_ZONE_ID || ""
+    const domainName = process.env.DOMAIN_NAME || ""
+    const cdnPriceClass = process.env.CDN_PRICE_CLASS || ""
+    const cdnCertificateArn = process.env.CDN_CERTIFICATE_ARN || ""
+    const codeBuildImage = process.env.CODE_BUILD_IMAGE || ""
+    const githubRepositoryOwnerUsername = process.env.GITHUB_REPOSITORY_OWNER_USERNAME || ""
+    const githubRepositoryName = process.env.GITHUB_REPOSITORY_NAME || ""
+    const githubOauthToken = process.env.GITHUB_OAUTH_TOKEN || ""
 
     // create artifact bucket
     var artifactBucket = new s3.CfnBucket(this, "artifactBucket", {
@@ -72,12 +67,6 @@ export class StaticWebsiteStack extends cdk.Stack {
       accessControl: "Private"
     });
 
-    // create git repository to store artifact
-    var gitRepository = new codecommit.CfnRepository(this, 'gitRepository', {
-      repositoryName: globalConfig.config["DomainName"],
-      repositoryDescription: 'Repository of static website ' + globalConfig.config["DomainName"]
-    });
-
     // create codebuild service role
     var codeBuildServiceRole = new iam.CfnRole(this, "codeBuildServiceRole", {
       assumeRolePolicyDocument: {
@@ -108,7 +97,7 @@ export class StaticWebsiteStack extends cdk.Stack {
       environment: {
         type: "LINUX_CONTAINER",
         computeType: "BUILD_GENERAL1_SMALL",
-        image: globalConfig.config["CodeBuildImage"]
+        image: codeBuildImage
       },
       source: {
         type: "CODEPIPELINE"
@@ -124,7 +113,8 @@ export class StaticWebsiteStack extends cdk.Stack {
             "Effect": "Allow",
             "Principal": {
               "Service": [
-                "codepipeline.amazonaws.com"
+                "codepipeline.amazonaws.com",
+                "lambda.amazonaws.com"
               ]
             },
             "Action": [
@@ -139,17 +129,6 @@ export class StaticWebsiteStack extends cdk.Stack {
           policyDocument: {
             "Version": "2012-10-17",
             "Statement": [
-              {
-                "Effect": "Allow",
-                "Action": [
-                  "codecommit:CancelUploadArchive",
-                  "codecommit:GetBranch",
-                  "codecommit:GetCommit",
-                  "codecommit:GetUploadArchiveStatus",
-                  "codecommit:UploadArchive"
-                ],
-                "Resource": gitRepository.repositoryArn.toString()
-              },
               {
                 "Effect": "Allow",
                 "Action": [
@@ -179,6 +158,22 @@ export class StaticWebsiteStack extends cdk.Stack {
                   contentBucket.bucketArn.toString(),
                   contentBucket.bucketArn.toString() + "/*"
                 ]
+              },
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "codebuild:BatchGetBuilds",
+                  "codebuild:StartBuild"
+                ],
+                "Resource": codeBuildProject.projectArn.toString()
+              },
+              {
+                "Effect": "Allow",
+                "Action": [
+                  'lambda:ListFunctions',
+                  'lambda:InvokeFunction'
+                ],
+                "Resource": "*"
               }
             ]
           }
@@ -189,7 +184,7 @@ export class StaticWebsiteStack extends cdk.Stack {
     // create origin access identity
     var contentCDNOAI = new cloudfront.CfnCloudFrontOriginAccessIdentity(this, "contentCDNOAI", {
       cloudFrontOriginAccessIdentityConfig: {
-        comment: globalConfig.config["DomainName"]
+        comment: domainName
       }
     })
 
@@ -197,7 +192,7 @@ export class StaticWebsiteStack extends cdk.Stack {
     var contentCDN = new cloudfront.CfnDistribution(this, "contentCDN", {
       distributionConfig: {
         aliases: [
-          globalConfig.config["DomainName"]
+          domainName
         ],
         origins: [
           {
@@ -227,9 +222,9 @@ export class StaticWebsiteStack extends cdk.Stack {
           },
           viewerProtocolPolicy: "redirect-to-https"
         },
-        priceClass: globalConfig.config["CDNPriceClass"],
+        priceClass: cdnPriceClass,
         viewerCertificate: {
-          acmCertificateArn: globalConfig.config["CDNCertificateArn"],
+          acmCertificateArn: cdnCertificateArn,
           sslSupportMethod: "sni-only"
         }
       }
@@ -243,7 +238,8 @@ export class StaticWebsiteStack extends cdk.Stack {
     var policyStatementForCloudfront = new PolicyStatement(PolicyStatementEffect.Allow);
     policyStatementForCloudfront.addActions(
       "codepipeline:PutJobSuccessResult",
-      "codepipeline:PutJobFailureResult"
+      "codepipeline:PutJobFailureResult",
+      "cloudfront:CreateInvalidation"
     )
     policyStatementForCloudfront.addResource("*")
 
@@ -272,14 +268,16 @@ export class StaticWebsiteStack extends cdk.Stack {
               name: "GitCheckout",
               actionTypeId: {
                 category: "Source",
-                owner: "AWS",
-                provider: "CodeCommit",
+                owner: "ThirdParty",
+                provider: "GitHub",
                 version: "1"
               },
               configuration: {
-                "BranchName": "master",
+                "Owner": githubRepositoryOwnerUsername,
+                "Branch": "master",
                 "PollForSourceChanges": false,
-                "RepositoryName": gitRepository.repositoryName
+                "Repo": githubRepositoryName,
+                "OAuthToken": githubOauthToken
               },
               outputArtifacts: [
                 {
@@ -362,76 +360,11 @@ export class StaticWebsiteStack extends cdk.Stack {
       ]
     });
 
-    // create trigger service role
-    var triggerServiceRole = new iam.CfnRole(this, "triggerServiceRole", {
-      assumeRolePolicyDocument: {
-        "Version": "2012-10-17",
-        "Statement": [
-          {
-            "Effect": "Allow",
-            "Principal": {
-              "Service": [
-                "events.amazonaws.com"
-              ]
-            },
-            "Action": [
-              "sts:AssumeRole"
-            ]
-          }
-        ]
-      },
-      policies: [
-        {
-          policyName: "CodePipelineRunPolicy",
-          policyDocument: {
-            "Version": "2012-10-17",
-            "Statement": [
-              {
-                "Effect": "Allow",
-                "Action": [
-                  "codepipeline:StartPipelineExecution"
-                ],
-                "Resource": "arn:aws:codepipeline:" + this.region + ":" + this.accountId + ":" + pipeline.pipelineName
-              }
-            ]
-          }
-        }
-      ]
-    });
-
-    // create event rule
-    new events.CfnRule(this, "trigger", {
-      eventPattern: {
-        "source": [
-          "aws.codecommit"
-        ],
-        "detail-type": [
-          "CodeCommit Repository State Change"
-        ],
-        "resources": [
-          gitRepository.repositoryArn.toString()
-        ],
-        "detail": {
-          "event": [
-            "referenceCreated",
-            "referenceUpdated"
-          ],
-          "referenceType": [
-            "branch"
-          ],
-          "referenceName": [
-            "master"
-          ]
-        }
-      },
-      targets: [
-        {
-          arn: "arn:aws:codepipeline:" + this.region + ":" + this.accountId + ":" + pipeline.pipelineName,
-          roleArn: triggerServiceRole.roleArn.toString(),
-          id: pipeline.pipelineName + "-runner"
-        }
-      ]
-    });
+    new lambda.CfnPermission(this, "codepipelinePermissionLambdaInvoke", {
+      functionName: invalidationLambda.functionArn,
+      action: "lambda:InvokeFunction",
+      principal: "codepipeline.amazonaws.com"
+    })
 
     // create code build service role
     new iam.CfnPolicy(this, "codeBuildServiceRolePolicy", {
@@ -498,10 +431,10 @@ export class StaticWebsiteStack extends cdk.Stack {
 
     // create content record set group
     new route53.CfnRecordSetGroup(this, "contentRecordSet", {
-      hostedZoneId: globalConfig.config["HostedZoneId"],
+      hostedZoneId: hostedZoneId,
       recordSets: [
         {
-          name: globalConfig.config["DomainName"] + ".",
+          name: domainName + ".",
           type: "A",
           aliasTarget: {
             hostedZoneId: "Z2FDTNDATAQYW2",
@@ -511,13 +444,22 @@ export class StaticWebsiteStack extends cdk.Stack {
       ]
     })
 
-    // new lambda.CfnFunction(this, "cacheInvalidation", {
-
-    // });
-
-    // cloudfront:CreateInvalidation
-    // codepipeline:PutJobSuccessResult
-
+    // github webhook
+    new codepipeline.CfnWebhook(this, "githubWebhook", {
+      authentication: "GITHUB_HMAC",
+      authenticationConfiguration: {
+        secretToken: githubOauthToken
+      },
+      registerWithThirdParty: true,
+      filters: [{
+        jsonPath: "$.ref",
+        matchEquals: "refs/heads/{Branch}",
+      }],
+      targetPipeline: pipeline.pipelineName,
+      targetAction: "GitCheckout",
+      targetPipelineVersion: 1
+    });
 
   }
+
 }
