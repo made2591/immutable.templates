@@ -1,13 +1,14 @@
 import cdk = require("@aws-cdk/cdk");
+import cloudfront = require("@aws-cdk/aws-cloudfront");
 import codebuild = require('@aws-cdk/aws-codebuild');
 import codepipeline = require("@aws-cdk/aws-codepipeline");
 import codepipelineactions = require("@aws-cdk/aws-codepipeline-actions");
-import cloudfront = require("@aws-cdk/aws-cloudfront");
 import iam = require("@aws-cdk/aws-iam");
 import lambda = require("@aws-cdk/aws-lambda");
 import s3 = require("@aws-cdk/aws-s3");
-import { PolicyStatementEffect, PolicyStatement } from "@aws-cdk/aws-iam";
-import { ComputeType } from "@aws-cdk/aws-codebuild";
+
+import { ComputeType, LinuxBuildImage } from "@aws-cdk/aws-codebuild";
+import { PolicyStatementEffect } from "@aws-cdk/aws-iam";
 
 interface WebsitePipelineStackProps extends cdk.StackProps {
     stage: string;
@@ -33,16 +34,10 @@ export class WebsitePipelineStack extends cdk.Stack {
         super(scope, id, props);
 
         // create build project
-        this.codebuildProject = new codebuild.Project(this, "${stage}-${projectName}", {
+        this.codebuildProject = new codebuild.PipelineProject(this, "${stage}-${projectName}", {
             environment: {
                 computeType: ComputeType.Small,
-                buildImage: {
-                    type: "LINUX_CONTAINER",
-                    defaultComputeType: "BUILD_GENERAL1_SMALL",
-                }
-            },
-            source: {
-                type: "CODEPIPELINE",
+                buildImage: LinuxBuildImage.UBUNTU_14_04_RUBY_2_5_1
             }
         })
 
@@ -168,10 +163,15 @@ export class WebsitePipelineStack extends cdk.Stack {
         })
 
         // create iam role for codebuild, attach policy created and grant principal service to use it
-        var codebuildRole = new iam.Role(this, "${dev}-${projectName}", {
+        var codebuildRole = new iam.Role(this, "${dev}-${projectName}-codebuild-role", {
             assumedBy: new iam.ServicePrincipal('codebuild.amazonaws.com')
         })
         codebuildRole.attachInlinePolicy(policyStatementsForCodebuild)
+
+        var pipelineRole = new iam.Role(this, "${dev}-${projectName}-codepipeline-role", {
+            assumedBy
+        });
+        pipelineRole
 
     }
 
