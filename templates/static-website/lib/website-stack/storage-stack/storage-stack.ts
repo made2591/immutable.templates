@@ -1,6 +1,8 @@
 import cdk = require("@aws-cdk/cdk");
 import cloudfront = require("@aws-cdk/aws-cloudfront");
+import route53 = require('@aws-cdk/aws-route53');
 import s3 = require("@aws-cdk/aws-s3");
+
 import { BucketEncryption } from "@aws-cdk/aws-s3";
 import { HttpVersion, PriceClass, ViewerProtocolPolicy, OriginProtocolPolicy } from "@aws-cdk/aws-cloudfront";
 
@@ -9,6 +11,7 @@ interface WebsiteStorageStackProps extends cdk.StackProps {
     domainName: string;
     priceClass: PriceClass;
     cdnCertificateArn: string;
+    hostedZoneId: string;
 }
 
 export interface WebsiteStorageStack extends cdk.Stack {
@@ -117,5 +120,21 @@ export class WebsiteStorageStack extends cdk.Stack {
                 }
             ]
         });
+
+        // create content record set group
+        new route53.CfnRecordSetGroup(this, "contentRecordSet", {
+            hostedZoneId: props.hostedZoneId,
+            recordSets: [
+                {
+                    name: props.domainName + ".",
+                    type: "A",
+                    aliasTarget: {
+                        hostedZoneId: "Z2FDTNDATAQYW2",
+                        dnsName: this.contentCDN.domainName
+                    }
+                }
+            ]
+        })
+
     }
 }

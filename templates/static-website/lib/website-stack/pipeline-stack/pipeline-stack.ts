@@ -132,13 +132,13 @@ export class WebsitePipelineStack extends cdk.Stack {
         });
 
         // create logs policy statement for codebuild
-        var logsPolicyStatementForLCodebuild = new iam.PolicyStatement(PolicyStatementEffect.Allow);
-        logsPolicyStatementForLCodebuild.addActions(
+        var logsPolicyStatementForCodebuild = new iam.PolicyStatement(PolicyStatementEffect.Allow);
+        logsPolicyStatementForCodebuild.addActions(
             "logs:CreateLogGroup",
             "logs:CreateLogStream",
             "logs:PutLogEvents"
         )
-        logsPolicyStatementForLCodebuild.addResources(
+        logsPolicyStatementForCodebuild.addResources(
             "arn:aws:logs:" + this.region + ":" + this.accountId + ":log-group:/aws/codebuild/" + this.codebuildProject.projectName,
             "arn:aws:logs:" + this.region + ":" + this.accountId + ":log-group:/aws/codebuild/" + this.codebuildProject.projectName + ":*"
         );
@@ -157,7 +157,7 @@ export class WebsitePipelineStack extends cdk.Stack {
         // put together policy statements for codebuild service
         var policyStatementsForCodebuild = new iam.Policy(this, "${stage}-${projectName}-codebuild", {
             statements: [
-                logsPolicyStatementForLCodebuild,
+                logsPolicyStatementForCodebuild,
                 s3PolicyStatementForCodebuild,
             ]
         })
@@ -168,10 +168,80 @@ export class WebsitePipelineStack extends cdk.Stack {
         })
         codebuildRole.attachInlinePolicy(policyStatementsForCodebuild)
 
+        // create s3 artifact policy statement for codepipeline
+        var s3artifactPolicyStatementForCodepipeline = new iam.PolicyStatement(PolicyStatementEffect.Allow)
+        s3artifactPolicyStatementForCodepipeline.addActions(
+            "s3:GetObject",
+            "s3:GetObjectVersion",
+            "s3:PutObject"
+        )
+        s3artifactPolicyStatementForCodepipeline.addResources(
+            props.artifactBucket.bucketArn.toString() + "/*"
+        );
+
+        // create codebuild policy statement for codepipeline
+        var codebuildPolicyStatementForCodepipeline = new iam.PolicyStatement(PolicyStatementEffect.Allow)
+        codebuildPolicyStatementForCodepipeline.addActions(
+            "codebuild:BatchGetBuilds",
+            "codebuild:StartBuild"
+        )
+        codebuildPolicyStatementForCodepipeline.addResources(
+            this.codebuildProject.projectArn.toString()
+        );
+
+        // create s3 content policy statement for codepipeline
+        var s3contentPolicyStatementForCodepipeline = new iam.PolicyStatement(PolicyStatementEffect.Allow)
+        s3contentPolicyStatementForCodepipeline.addActions(
+            "s3:PutObject",
+            "s3:DeleteObject"
+        )
+        s3contentPolicyStatementForCodepipeline.addResources(
+            props.contentBucket.bucketArn.toString(),
+            props.contentBucket.bucketArn.toString() + "/*"
+        );
+
+        // create lambda policy statement for codepipeline
+        var lambdaPolicyStatementForCodepipeline = new iam.PolicyStatement(PolicyStatementEffect.Allow)
+        lambdaPolicyStatementForCodepipeline.addActions(
+            'lambda:ListFunctions',
+            'lambda:InvokeFunction'
+        )
+        lambdaPolicyStatementForCodepipeline.addResources(
+            "*"
+        );
+
+        // put together policy statements for codepipeline service
+        var policyStatementsForCodepipeline = new iam.Policy(this, "${stage}-${projectName}-codepipeline", {
+            statements: [
+                s3artifactPolicyStatementForCodepipeline,
+                codebuildPolicyStatementForCodepipeline,
+                s3contentPolicyStatementForCodepipeline,
+                lambdaPolicyStatementForCodepipeline
+            ]
+        })
+
+        // create iam role for codepipeline, attach policy created and grand principal services to use it
         var pipelineRole = new iam.Role(this, "${dev}-${projectName}-codepipeline-role", {
-            assumedBy
+            assumedBy: new iam.ServicePrincipal('codebuild.amazonaws.com'),
         });
-        pipelineRole
+        pipelineRole.grant(new iam.ServicePrincipal('lambda.amazonaws.com'))
+        pipelineRole.attachInlinePolicy(policyStatementsForCodepipeline)
+
+        // github webhook
+        new codepipeline.CfnWebhook(this, "githubWebhook", {
+            authentication: "GITHUB_HMAC",
+            authenticationConfiguration: {
+                secretToken: props.githubOauthToken.toString()
+            },
+            registerWithThirdParty: true,
+            filters: [{
+                jsonPath: "$.ref",
+                matchEquals: "refs/heads/{Branch}",
+            }],
+            targetPipeline: this.pipeline.pipelineName,
+            targetAction: "GitCheckout",
+            targetPipelineVersion: 1
+        });
 
     }
 

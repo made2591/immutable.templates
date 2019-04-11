@@ -5,7 +5,7 @@ interface WebsiteStackProps extends cdk.StackProps {
     stage: string
 }
 
-export class MyStack extends cdk.Stack {
+export class WebsiteStack extends cdk.Stack {
     constructor(scope: cdk.App, id: string, props: WebsiteStackProps) {
         super(scope, id, props);
         if (props.stage == "dev") {
@@ -18,7 +18,5 @@ export class MyStack extends cdk.Stack {
     }
 }
 
-const oauth = new cdk.SecretParameter(this,
-    '${stage}-${projectName}-githubtoken',
-    { ssmParameter: props.githubOauthToken });
+const oauth = new cdk.SecretParameter(this, '${stage}-${projectName}-githubtoken', { ssmParameter: props.githubOauthToken });
 
