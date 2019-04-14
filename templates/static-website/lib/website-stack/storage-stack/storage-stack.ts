@@ -137,7 +137,7 @@ export class WebsiteStorageStack extends cdk.Stack {
             hostedZoneId: props.hostedZoneId,
             recordSets: [
                 {
-                    name: props.stage + props.domainName + ".",
+                    name: props.stage + "." + props.domainName + ".",
                     type: "A",
                     aliasTarget: {
                         hostedZoneId: "Z2FDTNDATAQYW2",
