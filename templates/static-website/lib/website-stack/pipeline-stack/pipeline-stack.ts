@@ -13,8 +13,8 @@ import { PolicyStatementEffect } from "@aws-cdk/aws-iam";
 interface WebsitePipelineStackProps extends cdk.StackProps {
     stage: string;
     projectName: string;
-    artifactBucket: s3.Bucket;
-    contentBucket: s3.Bucket;
+    artifactBucket: s3.BucketImportProps;
+    contentBucket: s3.BucketImportProps;
     githubRepositoryUsername: string;
     githubRepositoryName: string;
     githubOauthToken: cdk.SecretValue;
@@ -33,8 +33,12 @@ export class WebsitePipelineStack extends cdk.Stack {
     constructor(scope: cdk.App, id: string, props: WebsitePipelineStackProps) {
         super(scope, id, props);
 
+        // import resources from properties
+        const artifactBucket = s3.Bucket.import(this, "${props.stage}-artifact", props.artifactBucket)
+        const contentBucket = s3.Bucket.import(this, "${props.stage}-content", props.contentBucket)
+
         // create build project
-        this.codebuildProject = new codebuild.PipelineProject(this, "${stage}-${projectName}", {
+        this.codebuildProject = new codebuild.PipelineProject(this, "${stage}-${projectName}-codebuild", {
             environment: {
                 computeType: ComputeType.Small,
                 buildImage: LinuxBuildImage.UBUNTU_14_04_RUBY_2_5_1
@@ -66,7 +70,7 @@ export class WebsitePipelineStack extends cdk.Stack {
             actionName: "Deploy",
             inputArtifact: buildAction.outputArtifact,
             extract: true,
-            bucket: props.contentBucket
+            bucket: contentBucket
         });
 
         // create logs policy statement for invalidation lambda
@@ -87,7 +91,7 @@ export class WebsitePipelineStack extends cdk.Stack {
         this.invalidationLambda = new lambda.Function(this, "invalidationLambda", {
             runtime: lambda.Runtime.NodeJS810,
             handler: 'index.handler',
-            code: lambda.Code.asset("../lib/invalidation-lambda"),
+            code: lambda.Code.asset("lib/invalidation-lambda"),
             environment: {
                 "DISTRIBUTION_ID": props.contentCDN.distributionId
             },
@@ -108,9 +112,8 @@ export class WebsitePipelineStack extends cdk.Stack {
         })
 
         // create the pipeline
-        this.pipeline = new codepipeline.Pipeline(this, "${stage}-${projectName}", {
-            artifactBucket: props.artifactBucket,
-            pipelineName: "${stage}-${projectName}",
+        this.pipeline = new codepipeline.Pipeline(this, "${stage}-${projectName}-pipeline", {
+            artifactBucket: artifactBucket,
             stages: [
                 {
                     name: "Source",
@@ -151,11 +154,11 @@ export class WebsitePipelineStack extends cdk.Stack {
             "s3:PutObject"
         )
         s3PolicyStatementForCodebuild.addResources(
-            props.artifactBucket.bucketArn.toString() + "/*"
+            artifactBucket.bucketArn.toString() + "/*"
         );
 
         // put together policy statements for codebuild service
-        var policyStatementsForCodebuild = new iam.Policy(this, "${stage}-${projectName}-codebuild", {
+        var policyStatementsForCodebuild = new iam.Policy(this, "${stage}-${projectName}-codebuild-policy", {
             statements: [
                 logsPolicyStatementForCodebuild,
                 s3PolicyStatementForCodebuild,
@@ -176,7 +179,7 @@ export class WebsitePipelineStack extends cdk.Stack {
             "s3:PutObject"
         )
         s3artifactPolicyStatementForCodepipeline.addResources(
-            props.artifactBucket.bucketArn.toString() + "/*"
+            artifactBucket.bucketArn.toString() + "/*"
         );
 
         // create codebuild policy statement for codepipeline
@@ -196,8 +199,8 @@ export class WebsitePipelineStack extends cdk.Stack {
             "s3:DeleteObject"
         )
         s3contentPolicyStatementForCodepipeline.addResources(
-            props.contentBucket.bucketArn.toString(),
-            props.contentBucket.bucketArn.toString() + "/*"
+            contentBucket.bucketArn.toString(),
+            contentBucket.bucketArn.toString() + "/*"
         );
 
         // create lambda policy statement for codepipeline

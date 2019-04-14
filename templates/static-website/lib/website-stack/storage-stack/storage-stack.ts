@@ -15,10 +15,10 @@ interface WebsiteStorageStackProps extends cdk.StackProps {
 }
 
 export interface WebsiteStorageStack extends cdk.Stack {
-    artifactBucket: s3.Bucket;
-    loggingBucket: s3.Bucket;
-    contentBucket: s3.CfnBucket;
-    contentCDN: cloudfront.CloudFrontWebDistribution;
+    artifactBucketRef: s3.BucketImportProps;
+    loggingBucketRef: s3.BucketImportProps;
+    contentBucketRef: s3.BucketImportProps;
+    contentCDNRef: cloudfront.CloudFrontWebDistribution;
 }
 
 export class WebsiteStorageStack extends cdk.Stack {
@@ -26,20 +26,22 @@ export class WebsiteStorageStack extends cdk.Stack {
     constructor(scope: cdk.App, id: string, props: WebsiteStorageStackProps) {
         super(scope, id, props);
 
-        // create logging bucket
-        this.loggingBucket = new s3.Bucket(this, "${props.stage}-logging", {
-            encryption: BucketEncryption.S3Managed,
-            publicReadAccess: false
-        })
-
         // create artifact bucket
-        this.artifactBucket = new s3.Bucket(this, "${props.stage}-artifact", {
+        const artifactBucket = new s3.Bucket(this, "${props.stage}-artifact", {
             encryption: BucketEncryption.S3Managed,
             publicReadAccess: false
         })
+        this.artifactBucketRef = artifactBucket.export();
+
+        // create logging bucket
+        const loggingBucket = new s3.Bucket(this, "${props.stage}-logging", {
+            encryption: BucketEncryption.S3Managed,
+            publicReadAccess: false
+        })
+        this.loggingBucketRef = loggingBucket.export();
 
         // create content bucket
-        this.contentBucket = new s3.CfnBucket(this, "${props.stage}-content", {
+        const contentBucket = new s3.CfnBucket(this, "${props.stage}-content", {
             corsConfiguration: {
                 corsRules: [
                     {
@@ -54,6 +56,13 @@ export class WebsiteStorageStack extends cdk.Stack {
                 indexDocument: "index.html"
             }
         });
+        this.contentBucketRef = {
+            bucketArn: contentBucket.bucketArn,
+            bucketName: contentBucket.bucketName,
+            bucketDomainName: contentBucket.bucketDomainName,
+            bucketWebsiteUrl: contentBucket.bucketWebsiteUrl,
+            bucketWebsiteNewUrlFormat: false
+        };
 
         // create origin access identity
         var contentCDNOAI = new cloudfront.CfnCloudFrontOriginAccessIdentity(this, "${props.stage}-oai", {
@@ -64,7 +73,7 @@ export class WebsiteStorageStack extends cdk.Stack {
 
         // content bucket policy
         new s3.CfnBucketPolicy(this, "contentBucketPolicy", {
-            bucket: this.contentBucket.bucketName.toString(),
+            bucket: contentBucket.bucketName.toString(),
             policyDocument: {
                 "Statement": [
                     {
@@ -72,7 +81,7 @@ export class WebsiteStorageStack extends cdk.Stack {
                             "s3:GetObject"
                         ],
                         "Effect": "Allow",
-                        "Resource": this.contentBucket.bucketArn.toString() + "/*",
+                        "Resource": contentBucket.bucketArn.toString() + "/*",
                         "Principal": {
                             "AWS": "arn:aws:iam::cloudfront:user/CloudFront Origin Access Identity " + contentCDNOAI.ref
                         }
@@ -82,7 +91,7 @@ export class WebsiteStorageStack extends cdk.Stack {
                             "s3:GetObject"
                         ],
                         "Effect": "Allow",
-                        "Resource": this.contentBucket.bucketArn.toString() + "/*",
+                        "Resource": contentBucket.bucketArn.toString() + "/*",
                         "Principal": "*"
                     }
                 ]
@@ -90,7 +99,7 @@ export class WebsiteStorageStack extends cdk.Stack {
         })
 
         // create content CDN
-        this.contentCDN = new cloudfront.CloudFrontWebDistribution(this, "${props.stage}-cdn", {
+        this.contentCDNRef = new cloudfront.CloudFrontWebDistribution(this, "${props.stage}-cdn", {
             aliasConfiguration: {
                 names: [
                     "${stage}." + props.domainName
@@ -107,10 +116,11 @@ export class WebsiteStorageStack extends cdk.Stack {
                         httpPort: 80,
                         httpsPort: 443,
                         originProtocolPolicy: OriginProtocolPolicy.HttpOnly,
-                        domainName: this.contentBucket.bucketWebsiteUrl.split("/")[2]
+                        domainName: cdk.Fn.select(2, cdk.Fn.split("/", contentBucket.bucketWebsiteUrl))
                     },
                     behaviors: [
                         {
+                            isDefaultBehavior: true,
                             compress: true,
                             forwardedValues: {
                                 queryString: false
@@ -126,15 +136,16 @@ export class WebsiteStorageStack extends cdk.Stack {
             hostedZoneId: props.hostedZoneId,
             recordSets: [
                 {
-                    name: props.domainName + ".",
+                    name: "${stage}." + props.domainName + ".",
                     type: "A",
                     aliasTarget: {
                         hostedZoneId: "Z2FDTNDATAQYW2",
-                        dnsName: this.contentCDN.domainName
+                        dnsName: this.contentCDNRef.domainName
                     }
                 }
             ]
         })
 
     }
+
 }
