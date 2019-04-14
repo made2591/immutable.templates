@@ -4,7 +4,7 @@ import route53 = require('@aws-cdk/aws-route53');
 import s3 = require("@aws-cdk/aws-s3");
 
 import { BucketEncryption } from "@aws-cdk/aws-s3";
-import { HttpVersion, PriceClass, ViewerProtocolPolicy, OriginProtocolPolicy } from "@aws-cdk/aws-cloudfront";
+import { HttpVersion, PriceClass, ViewerProtocolPolicy, OriginProtocolPolicy, SSLMethod } from "@aws-cdk/aws-cloudfront";
 
 interface WebsiteStorageStackProps extends cdk.StackProps {
     stage: string;
@@ -102,8 +102,9 @@ export class WebsiteStorageStack extends cdk.Stack {
         this.contentCDNRef = new cloudfront.CloudFrontWebDistribution(this, "${props.stage}-cdn", {
             aliasConfiguration: {
                 names: [
-                    "${stage}." + props.domainName
+                    props.domainName
                 ],
+                sslMethod: SSLMethod.SNI,
                 acmCertRef: props.cdnCertificateArn
             },
             defaultRootObject: "index.html",
