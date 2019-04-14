@@ -34,11 +34,11 @@ export class WebsitePipelineStack extends cdk.Stack {
         super(scope, id, props);
 
         // import resources from properties
-        const artifactBucket = s3.Bucket.import(this, "${props.stage}-artifact", props.artifactBucket)
-        const contentBucket = s3.Bucket.import(this, "${props.stage}-content", props.contentBucket)
+        const artifactBucket = s3.Bucket.import(this, props.stage + "-artifact", props.artifactBucket)
+        const contentBucket = s3.Bucket.import(this, props.stage + "-content", props.contentBucket)
 
         // create build project
-        this.codebuildProject = new codebuild.PipelineProject(this, "${stage}-${projectName}-codebuild", {
+        this.codebuildProject = new codebuild.PipelineProject(this, props.stage + "-" + props.projectName + "-codebuild", {
             environment: {
                 computeType: ComputeType.Small,
                 buildImage: LinuxBuildImage.UBUNTU_14_04_RUBY_2_5_1
@@ -88,7 +88,7 @@ export class WebsitePipelineStack extends cdk.Stack {
         policyStatementForCloudfront.addResource("*")
 
         // create invalidation lambda
-        this.invalidationLambda = new lambda.Function(this, "invalidationLambda", {
+        this.invalidationLambda = new lambda.Function(this, props.stage + "-" + props.projectName + "-invalidation", {
             runtime: lambda.Runtime.NodeJS810,
             handler: 'index.handler',
             code: lambda.Code.asset("lib/invalidation-lambda"),
@@ -112,7 +112,7 @@ export class WebsitePipelineStack extends cdk.Stack {
         })
 
         // create the pipeline
-        this.pipeline = new codepipeline.Pipeline(this, "${stage}-${projectName}-pipeline", {
+        this.pipeline = new codepipeline.Pipeline(this, props.stage + "-" + props.projectName + "-pipeline", {
             artifactBucket: artifactBucket,
             stages: [
                 {
@@ -158,7 +158,7 @@ export class WebsitePipelineStack extends cdk.Stack {
         );
 
         // put together policy statements for codebuild service
-        var policyStatementsForCodebuild = new iam.Policy(this, "${stage}-${projectName}-codebuild-policy", {
+        var policyStatementsForCodebuild = new iam.Policy(this, props.stage + "-" + props.projectName + "-codebuild-statements", {
             statements: [
                 logsPolicyStatementForCodebuild,
                 s3PolicyStatementForCodebuild,
@@ -166,7 +166,7 @@ export class WebsitePipelineStack extends cdk.Stack {
         })
 
         // create iam role for codebuild, attach policy created and grant principal service to use it
-        var codebuildRole = new iam.Role(this, "${dev}-${projectName}-codebuild-role", {
+        var codebuildRole = new iam.Role(this, props.stage + "-" + props.projectName + "-codebuild-role", {
             assumedBy: new iam.ServicePrincipal('codebuild.amazonaws.com')
         })
         codebuildRole.attachInlinePolicy(policyStatementsForCodebuild)
@@ -214,7 +214,7 @@ export class WebsitePipelineStack extends cdk.Stack {
         );
 
         // put together policy statements for codepipeline service
-        var policyStatementsForCodepipeline = new iam.Policy(this, "${stage}-${projectName}-codepipeline", {
+        var policyStatementsForCodepipeline = new iam.Policy(this, props.stage + "-" + props.projectName + "-codepipeline-statements", {
             statements: [
                 s3artifactPolicyStatementForCodepipeline,
                 codebuildPolicyStatementForCodepipeline,
@@ -224,14 +224,14 @@ export class WebsitePipelineStack extends cdk.Stack {
         })
 
         // create iam role for codepipeline, attach policy created and grand principal services to use it
-        var pipelineRole = new iam.Role(this, "${dev}-${projectName}-codepipeline-role", {
+        var pipelineRole = new iam.Role(this, props.stage + "-" + props.projectName + "-codepipeline-role", {
             assumedBy: new iam.ServicePrincipal('codebuild.amazonaws.com'),
         });
         pipelineRole.grant(new iam.ServicePrincipal('lambda.amazonaws.com'))
         pipelineRole.attachInlinePolicy(policyStatementsForCodepipeline)
 
         // github webhook
-        new codepipeline.CfnWebhook(this, "githubWebhook", {
+        new codepipeline.CfnWebhook(this, props.stage + "-" + props.projectName + "-githubWebhook", {
             authentication: "GITHUB_HMAC",
             authenticationConfiguration: {
                 secretToken: props.githubOauthToken.toString()

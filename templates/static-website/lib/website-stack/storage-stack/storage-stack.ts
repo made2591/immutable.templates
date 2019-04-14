@@ -27,21 +27,21 @@ export class WebsiteStorageStack extends cdk.Stack {
         super(scope, id, props);
 
         // create artifact bucket
-        const artifactBucket = new s3.Bucket(this, "${props.stage}-artifact", {
+        const artifactBucket = new s3.Bucket(this, props.stage + "-artifact", {
             encryption: BucketEncryption.S3Managed,
             publicReadAccess: false
         })
         this.artifactBucketRef = artifactBucket.export();
 
         // create logging bucket
-        const loggingBucket = new s3.Bucket(this, "${props.stage}-logging", {
+        const loggingBucket = new s3.Bucket(this, props.stage + "-logging", {
             encryption: BucketEncryption.S3Managed,
             publicReadAccess: false
         })
         this.loggingBucketRef = loggingBucket.export();
 
         // create content bucket
-        const contentBucket = new s3.CfnBucket(this, "${props.stage}-content", {
+        const contentBucket = new s3.CfnBucket(this, props.stage + "-content", {
             corsConfiguration: {
                 corsRules: [
                     {
@@ -65,14 +65,14 @@ export class WebsiteStorageStack extends cdk.Stack {
         };
 
         // create origin access identity
-        var contentCDNOAI = new cloudfront.CfnCloudFrontOriginAccessIdentity(this, "${props.stage}-oai", {
+        var contentCDNOAI = new cloudfront.CfnCloudFrontOriginAccessIdentity(this, props.stage + "-oai", {
             cloudFrontOriginAccessIdentityConfig: {
                 comment: props.domainName
             }
         })
 
         // content bucket policy
-        new s3.CfnBucketPolicy(this, "contentBucketPolicy", {
+        new s3.CfnBucketPolicy(this, props.stage + "-content-policy", {
             bucket: contentBucket.bucketName.toString(),
             policyDocument: {
                 "Statement": [
@@ -99,7 +99,7 @@ export class WebsiteStorageStack extends cdk.Stack {
         })
 
         // create content CDN
-        this.contentCDNRef = new cloudfront.CloudFrontWebDistribution(this, "${props.stage}-cdn", {
+        this.contentCDNRef = new cloudfront.CloudFrontWebDistribution(this, props.stage + "-cdn", {
             aliasConfiguration: {
                 names: [
                     props.domainName
@@ -133,11 +133,11 @@ export class WebsiteStorageStack extends cdk.Stack {
         });
 
         // create content record set group
-        new route53.CfnRecordSetGroup(this, "contentRecordSet", {
+        new route53.CfnRecordSetGroup(this, props.stage + "content-recordset", {
             hostedZoneId: props.hostedZoneId,
             recordSets: [
                 {
-                    name: "${stage}." + props.domainName + ".",
+                    name: props.stage + props.domainName + ".",
                     type: "A",
                     aliasTarget: {
                         hostedZoneId: "Z2FDTNDATAQYW2",
