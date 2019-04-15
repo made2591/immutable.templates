@@ -5,9 +5,10 @@ import s3 = require("@aws-cdk/aws-s3");
 
 import { BucketEncryption } from "@aws-cdk/aws-s3";
 import { HttpVersion, PriceClass, ViewerProtocolPolicy, OriginProtocolPolicy, SSLMethod } from "@aws-cdk/aws-cloudfront";
+import { Stage } from "../../common";
 
 interface WebsiteStorageStackProps extends cdk.StackProps {
-    stage: string;
+    stage: Stage;
     domainName: string;
     priceClass: PriceClass;
     cdnCertificateArn: string;
@@ -27,21 +28,21 @@ export class WebsiteStorageStack extends cdk.Stack {
         super(scope, id, props);
 
         // create artifact bucket
-        const artifactBucket = new s3.Bucket(this, props.stage + "-artifact", {
+        const artifactBucket = new s3.Bucket(this, props.stage.toString() + "-artifact", {
             encryption: BucketEncryption.S3Managed,
             publicReadAccess: false
         })
         this.artifactBucketRef = artifactBucket.export();
 
         // create logging bucket
-        const loggingBucket = new s3.Bucket(this, props.stage + "-logging", {
+        const loggingBucket = new s3.Bucket(this, props.stage.toString() + "-logging", {
             encryption: BucketEncryption.S3Managed,
             publicReadAccess: false
         })
         this.loggingBucketRef = loggingBucket.export();
 
         // create content bucket
-        const contentBucket = new s3.CfnBucket(this, props.stage + "-content", {
+        const contentBucket = new s3.CfnBucket(this, props.stage.toString() + "-content", {
             corsConfiguration: {
                 corsRules: [
                     {
@@ -65,14 +66,14 @@ export class WebsiteStorageStack extends cdk.Stack {
         };
 
         // create origin access identity
-        var contentCDNOAI = new cloudfront.CfnCloudFrontOriginAccessIdentity(this, props.stage + "-oai", {
+        var contentCDNOAI = new cloudfront.CfnCloudFrontOriginAccessIdentity(this, props.stage.toString() + "-oai", {
             cloudFrontOriginAccessIdentityConfig: {
                 comment: props.domainName
             }
         })
 
         // content bucket policy
-        new s3.CfnBucketPolicy(this, props.stage + "-content-policy", {
+        new s3.CfnBucketPolicy(this, props.stage.toString() + "-content-policy", {
             bucket: contentBucket.bucketName.toString(),
             policyDocument: {
                 "Statement": [
@@ -98,12 +99,19 @@ export class WebsiteStorageStack extends cdk.Stack {
             }
         })
 
+        // define first domain name aliases of cdn only for production
+        var aliases = [
+            props + "." + props.domainName
+        ]
+        // define first domain name aliases of cdn only for production
+        if (props.stage.toString() == Stage.Prod) {
+            aliases.push(props.domainName);
+        }
+
         // create content CDN
-        this.contentCDNRef = new cloudfront.CloudFrontWebDistribution(this, props.stage + "-cdn", {
+        this.contentCDNRef = new cloudfront.CloudFrontWebDistribution(this, props.stage.toString() + "-cdn", {
             aliasConfiguration: {
-                names: [
-                    props.domainName
-                ],
+                names: aliases,
                 sslMethod: SSLMethod.SNI,
                 acmCertRef: props.cdnCertificateArn
             },
@@ -132,19 +140,33 @@ export class WebsiteStorageStack extends cdk.Stack {
             ]
         });
 
-        // create content record set group
-        new route53.CfnRecordSetGroup(this, props.stage + "content-recordset", {
-            hostedZoneId: props.hostedZoneId,
-            recordSets: [
-                {
-                    name: props.stage + "." + props.domainName + ".",
-                    type: "A",
-                    aliasTarget: {
-                        hostedZoneId: "Z2FDTNDATAQYW2",
-                        dnsName: this.contentCDNRef.domainName
-                    }
+        // define first domain name record only for production
+        var recordSetsReferences = [
+            {
+                name: props.stage.toString() + "." + props.domainName + ".",
+                type: "A",
+                aliasTarget: {
+                    hostedZoneId: "Z2FDTNDATAQYW2",
+                    dnsName: this.contentCDNRef.domainName
                 }
-            ]
+            }
+        ]
+        // define first domain name record only for production
+        if (props.stage.toString() == Stage.Prod) {
+            recordSetsReferences.push({
+                name: props.domainName + ".",
+                type: "A",
+                aliasTarget: {
+                    hostedZoneId: "Z2FDTNDATAQYW2",
+                    dnsName: this.contentCDNRef.domainName
+                }
+            });
+        }
+
+        // create content record set group
+        new route53.CfnRecordSetGroup(this, props.stage.toString() + "-content-recordset", {
+            hostedZoneId: props.hostedZoneId,
+            recordSets: recordSetsReferences
         })
 
     }

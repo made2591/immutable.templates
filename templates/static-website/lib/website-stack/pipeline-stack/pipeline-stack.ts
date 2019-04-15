@@ -9,9 +9,10 @@ import s3 = require("@aws-cdk/aws-s3");
 
 import { ComputeType, LinuxBuildImage } from "@aws-cdk/aws-codebuild";
 import { PolicyStatementEffect } from "@aws-cdk/aws-iam";
+import { Stage } from "../../common";
 
 interface WebsitePipelineStackProps extends cdk.StackProps {
-    stage: string;
+    stage: Stage;
     projectName: string;
     artifactBucket: s3.BucketImportProps;
     contentBucket: s3.BucketImportProps;
@@ -34,11 +35,11 @@ export class WebsitePipelineStack extends cdk.Stack {
         super(scope, id, props);
 
         // import resources from properties
-        const artifactBucket = s3.Bucket.import(this, props.stage + "-artifact", props.artifactBucket)
-        const contentBucket = s3.Bucket.import(this, props.stage + "-content", props.contentBucket)
+        const artifactBucket = s3.Bucket.import(this, props.stage.toString() + "-artifact", props.artifactBucket)
+        const contentBucket = s3.Bucket.import(this, props.stage.toString() + "-content", props.contentBucket)
 
         // create build project
-        this.codebuildProject = new codebuild.PipelineProject(this, props.stage + "-" + props.projectName + "-codebuild", {
+        this.codebuildProject = new codebuild.PipelineProject(this, props.stage.toString() + "-" + props.projectName + "-codebuild", {
             environment: {
                 computeType: ComputeType.Small,
                 buildImage: LinuxBuildImage.UBUNTU_14_04_RUBY_2_5_1
@@ -51,7 +52,7 @@ export class WebsitePipelineStack extends cdk.Stack {
             outputArtifactName: "SourceArtifact",
             owner: "ThirdParty",
             repo: props.githubRepositoryName,
-            branch: props.stage == "dev" ? "dev" : "master",
+            branch: props.stage.toString() == Stage.Prod ? "master" : props.stage.toString(),
             oauthToken: props.githubOauthToken,
             pollForSourceChanges: false,
             runOrder: 1
@@ -88,7 +89,7 @@ export class WebsitePipelineStack extends cdk.Stack {
         policyStatementForCloudfront.addResource("*")
 
         // create invalidation lambda
-        this.invalidationLambda = new lambda.Function(this, props.stage + "-" + props.projectName + "-invalidation", {
+        this.invalidationLambda = new lambda.Function(this, props.stage.toString() + "-" + props.projectName + "-invalidation", {
             runtime: lambda.Runtime.NodeJS810,
             handler: 'index.handler',
             code: lambda.Code.asset("lib/invalidation-lambda"),
@@ -105,14 +106,14 @@ export class WebsitePipelineStack extends cdk.Stack {
         });
 
         // give to pipeline permission to invoke the invalidation lambda
-        new lambda.CfnPermission(this, "codepipelinePermissionLambdaInvoke", {
+        new lambda.CfnPermission(this, props.stage.toString() + "-" + props.projectName + "-invalidation-lambda", {
             functionName: this.invalidationLambda.functionArn,
             action: "lambda:InvokeFunction",
             principal: "codepipeline.amazonaws.com"
         })
 
         // create the pipeline
-        this.pipeline = new codepipeline.Pipeline(this, props.stage + "-" + props.projectName + "-pipeline", {
+        this.pipeline = new codepipeline.Pipeline(this, props.stage.toString() + "-" + props.projectName + "-pipeline", {
             artifactBucket: artifactBucket,
             stages: [
                 {
@@ -158,7 +159,7 @@ export class WebsitePipelineStack extends cdk.Stack {
         );
 
         // put together policy statements for codebuild service
-        var policyStatementsForCodebuild = new iam.Policy(this, props.stage + "-" + props.projectName + "-codebuild-statements", {
+        var policyStatementsForCodebuild = new iam.Policy(this, props.stage.toString() + "-" + props.projectName + "-codebuild-statements", {
             statements: [
                 logsPolicyStatementForCodebuild,
                 s3PolicyStatementForCodebuild,
@@ -166,7 +167,7 @@ export class WebsitePipelineStack extends cdk.Stack {
         })
 
         // create iam role for codebuild, attach policy created and grant principal service to use it
-        var codebuildRole = new iam.Role(this, props.stage + "-" + props.projectName + "-codebuild-role", {
+        var codebuildRole = new iam.Role(this, props.stage.toString() + "-" + props.projectName + "-codebuild-role", {
             assumedBy: new iam.ServicePrincipal('codebuild.amazonaws.com')
         })
         codebuildRole.attachInlinePolicy(policyStatementsForCodebuild)
@@ -214,7 +215,7 @@ export class WebsitePipelineStack extends cdk.Stack {
         );
 
         // put together policy statements for codepipeline service
-        var policyStatementsForCodepipeline = new iam.Policy(this, props.stage + "-" + props.projectName + "-codepipeline-statements", {
+        var policyStatementsForCodepipeline = new iam.Policy(this, props.stage.toString() + "-" + props.projectName + "-codepipeline-statements", {
             statements: [
                 s3artifactPolicyStatementForCodepipeline,
                 codebuildPolicyStatementForCodepipeline,
@@ -224,14 +225,14 @@ export class WebsitePipelineStack extends cdk.Stack {
         })
 
         // create iam role for codepipeline, attach policy created and grand principal services to use it
-        var pipelineRole = new iam.Role(this, props.stage + "-" + props.projectName + "-codepipeline-role", {
+        var pipelineRole = new iam.Role(this, props.stage.toString() + "-" + props.projectName + "-codepipeline-role", {
             assumedBy: new iam.ServicePrincipal('codebuild.amazonaws.com'),
         });
         pipelineRole.grant(new iam.ServicePrincipal('lambda.amazonaws.com'))
         pipelineRole.attachInlinePolicy(policyStatementsForCodepipeline)
 
         // github webhook
-        new codepipeline.CfnWebhook(this, props.stage + "-" + props.projectName + "-githubWebhook", {
+        new codepipeline.CfnWebhook(this, props.stage.toString() + "-" + props.projectName + "-githubWebhook", {
             authentication: "GITHUB_HMAC",
             authenticationConfiguration: {
                 secretToken: props.githubOauthToken.toString()
