@@ -3,7 +3,7 @@ import cdk = require("@aws-cdk/cdk");
 import { PriceClass } from "@aws-cdk/aws-cloudfront";
 import { WebsitePipelineStack } from "../lib/website-stack/pipeline-stack/pipeline-stack";
 import { WebsiteStorageStack } from "../lib/website-stack/storage-stack/storage-stack";
-import { Stage } from "../lib/common";
+import { Stage } from "../lib/website-stack/stage-env/stage-env";
 
 var cdnPriceClass = PriceClass.PriceClass100;
 switch (process.env.CDN_PRICE_CLASS) {
@@ -43,6 +43,8 @@ switch (process.env.STAGE) {
         break;
     }
 }
+console.log('debug', process.env.STAGE, stage)
+
 const cdnCertificateArn = process.env.CDN_CERTIFICATE_ARN || ""
 const codeBuildImage = process.env.CODE_BUILD_IMAGE || ""
 const domainName = process.env.DOMAIN_NAME || ""

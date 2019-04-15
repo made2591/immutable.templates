@@ -9,7 +9,7 @@ import s3 = require("@aws-cdk/aws-s3");
 
 import { ComputeType, LinuxBuildImage } from "@aws-cdk/aws-codebuild";
 import { PolicyStatementEffect } from "@aws-cdk/aws-iam";
-import { Stage } from "../../common";
+import { Stage } from "../stage-env/stage-env";
 
 interface WebsitePipelineStackProps extends cdk.StackProps {
     stage: Stage;

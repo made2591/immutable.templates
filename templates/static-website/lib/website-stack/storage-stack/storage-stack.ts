@@ -5,7 +5,7 @@ import s3 = require("@aws-cdk/aws-s3");
 
 import { BucketEncryption } from "@aws-cdk/aws-s3";
 import { HttpVersion, PriceClass, ViewerProtocolPolicy, OriginProtocolPolicy, SSLMethod } from "@aws-cdk/aws-cloudfront";
-import { Stage } from "../../common";
+import { Stage } from "../stage-env/stage-env";
 
 interface WebsiteStorageStackProps extends cdk.StackProps {
     stage: Stage;
@@ -101,7 +101,7 @@ export class WebsiteStorageStack extends cdk.Stack {
 
         // define first domain name aliases of cdn only for production
         var aliases = [
-            props + "." + props.domainName
+            props.stage.toString() + "." + props.domainName
         ]
         // define first domain name aliases of cdn only for production
         if (props.stage.toString() == Stage.Prod) {
