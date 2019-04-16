@@ -42,28 +42,11 @@ export class WebsiteStorageStack extends cdk.Stack {
         this.loggingBucketRef = loggingBucket.export();
 
         // create content bucket
-        const contentBucket = new s3.CfnBucket(this, props.stage.toString() + "-content", {
-            corsConfiguration: {
-                corsRules: [
-                    {
-                        allowedOrigins: ["*"],
-                        allowedMethods: ["GET"],
-                        maxAge: 3000,
-                        allowedHeaders: ["Authorization", "Content-Length"]
-                    }
-                ]
-            },
-            websiteConfiguration: {
-                indexDocument: "index.html"
-            }
+        const contentBucket = new s3.Bucket(this, props.stage.toString() + "-content", {
+            websiteIndexDocument: "index.html"
         });
-        this.contentBucketRef = {
-            bucketArn: contentBucket.bucketArn,
-            bucketName: contentBucket.bucketName,
-            bucketDomainName: contentBucket.bucketDomainName,
-            bucketWebsiteUrl: contentBucket.bucketWebsiteUrl,
-            bucketWebsiteNewUrlFormat: false
-        };
+
+        this.contentBucketRef = contentBucket.export()
 
         // create origin access identity
         var contentCDNOAI = new cloudfront.CfnCloudFrontOriginAccessIdentity(this, props.stage.toString() + "-oai", {
