@@ -6,6 +6,7 @@ import codepipelineactions = require("@aws-cdk/aws-codepipeline-actions");
 import iam = require("@aws-cdk/aws-iam");
 import lambda = require("@aws-cdk/aws-lambda");
 import s3 = require("@aws-cdk/aws-s3");
+import secretsmanager = require('@aws-cdk/aws-secretsmanager');
 
 import { ComputeType, LinuxBuildImage } from "@aws-cdk/aws-codebuild";
 import { PolicyStatementEffect } from "@aws-cdk/aws-iam";
@@ -18,7 +19,7 @@ interface WebsitePipelineStackProps extends cdk.StackProps {
     contentBucket: s3.BucketImportProps;
     githubRepositoryUsername: string;
     githubRepositoryName: string;
-    githubOauthToken: cdk.SecretValue;
+    githubOauthTokenArn: string;
     contentCDN: cloudfront.CloudFrontWebDistribution;
     buildImage: string;
 }
@@ -45,6 +46,10 @@ export class WebsitePipelineStack extends cdk.Stack {
                 buildImage: LinuxBuildImage.UBUNTU_14_04_RUBY_2_5_1
             }
         })
+        
+        console.log("github-token", secretsmanager.Secret.import(this, 'github-token', { 
+            secretArn: props.githubOauthTokenArn
+        }).secretJsonValue('github-token'))
 
         // create git checkout action
         var gitCheckoutAction = new codepipelineactions.GitHubSourceAction({
@@ -53,7 +58,9 @@ export class WebsitePipelineStack extends cdk.Stack {
             owner: "ThirdParty",
             repo: props.githubRepositoryName,
             branch: props.stage.toString() == Stage.Prod ? "master" : props.stage.toString(),
-            oauthToken: props.githubOauthToken,
+            oauthToken: secretsmanager.Secret.import(this, 'github-token', { 
+                secretArn: props.githubOauthTokenArn
+            }).secretJsonValue('github-token'),
             pollForSourceChanges: false,
             runOrder: 1
         })
@@ -64,7 +71,7 @@ export class WebsitePipelineStack extends cdk.Stack {
             project: this.codebuildProject,
             inputArtifact: gitCheckoutAction.outputArtifact,
             outputArtifactName: "BuildArtifact",
-        });
+        })
 
         // create deploy action
         var deployAction = new codepipelineactions.S3DeployAction({
@@ -72,7 +79,7 @@ export class WebsitePipelineStack extends cdk.Stack {
             inputArtifact: buildAction.outputArtifact,
             extract: true,
             bucket: contentBucket
-        });
+        })
 
         // create logs policy statement for invalidation lambda
         var policyStatementForLogs = new iam.PolicyStatement(PolicyStatementEffect.Allow);
@@ -129,7 +136,7 @@ export class WebsitePipelineStack extends cdk.Stack {
                     actions: [deployAction]
                 },
                 {
-                    name: "Invalidation",
+                    name: "Invalidate",
                     actions: [invalidationAction]
                 }
             ]
@@ -235,7 +242,9 @@ export class WebsitePipelineStack extends cdk.Stack {
         new codepipeline.CfnWebhook(this, props.stage.toString() + "-" + props.projectName + "-githubWebhook", {
             authentication: "GITHUB_HMAC",
             authenticationConfiguration: {
-                secretToken: props.githubOauthToken.toString()
+                secretToken: secretsmanager.Secret.import(scope, 'github-token', {
+                    secretArn: props.githubOauthTokenArn,
+                }).secretJsonValue('github-token').toString()
             },
             registerWithThirdParty: true,
             filters: [{
@@ -243,7 +252,7 @@ export class WebsitePipelineStack extends cdk.Stack {
                 matchEquals: "refs/heads/{Branch}",
             }],
             targetPipeline: this.pipeline.pipelineName,
-            targetAction: "GitCheckout",
+            targetAction: gitCheckoutAction.actionName,
             targetPipelineVersion: 1
         });
 

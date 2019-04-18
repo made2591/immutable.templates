@@ -48,13 +48,12 @@ console.log('debug', process.env.STAGE, stage)
 const cdnCertificateArn = process.env.CDN_CERTIFICATE_ARN || ""
 const codeBuildImage = process.env.CODE_BUILD_IMAGE || ""
 const domainName = process.env.DOMAIN_NAME || ""
-const githubOauthToken = process.env.GITHUB_OAUTH_TOKEN || ""
+const githubOauthTokenArn = process.env.GITHUB_OAUTH_TOKEN_ARN || "" // key of token: "github-token"
 const githubRepositoryName = process.env.GITHUB_REPOSITORY_NAME || ""
 const githubRepositoryOwnerUsername = process.env.GITHUB_REPOSITORY_OWNER_USERNAME || ""
 const hostedZoneId = process.env.HOSTED_ZONE_ID || ""
 
 const app = new cdk.App();
-new cdk.SecretValue(githubOauthToken, "github-token");
 
 var storageStack = new WebsiteStorageStack(app, 'dev-storage-madeddu-xyz', {
     stage: stage,
@@ -72,7 +71,7 @@ new WebsitePipelineStack(app, 'dev-pipeline-madeddu-xyz', {
     githubRepositoryName: githubRepositoryName,
     artifactBucket: storageStack.artifactBucketRef,
     contentBucket: storageStack.contentBucketRef,
-    githubOauthToken: cdk.SecretValue.ssmSecure("github-token", "1"),
+    githubOauthTokenArn: githubOauthTokenArn,
     contentCDN: storageStack.contentCDNRef
 });
 
