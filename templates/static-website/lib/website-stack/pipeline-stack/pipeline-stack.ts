@@ -20,6 +20,7 @@ interface WebsitePipelineStackProps extends cdk.StackProps {
     githubRepositoryUsername: string;
     githubRepositoryName: string;
     githubOauthTokenArn: string;
+    githubOauthToken: string;
     contentCDN: cloudfront.CloudFrontWebDistribution;
     buildImage: string;
 }
@@ -47,36 +48,36 @@ export class WebsitePipelineStack extends cdk.Stack {
             }
         })
         
-        console.log("github-token", secretsmanager.Secret.import(this, 'github-token', { 
-            secretArn: props.githubOauthTokenArn
-        }).secretJsonValue('github-token'))
+        var githubWebhook = secretsmanager.Secret.import(this, 'github-token', { 
+            secretArn: props.githubOauthTokenArn,
+        })
 
         // create git checkout action
         var gitCheckoutAction = new codepipelineactions.GitHubSourceAction({
             actionName: "GitHubCheckout",
-            outputArtifactName: "SourceArtifact",
-            owner: "ThirdParty",
+            output: new codepipeline.Artifact("SourceArtifact"),
+            owner: props.githubRepositoryUsername,
             repo: props.githubRepositoryName,
             branch: props.stage.toString() == Stage.Prod ? "master" : props.stage.toString(),
-            oauthToken: secretsmanager.Secret.import(this, 'github-token', { 
-                secretArn: props.githubOauthTokenArn
-            }).secretJsonValue('github-token'),
+            oauthToken: githubWebhook.secretJsonValue("secret"),
             pollForSourceChanges: false,
             runOrder: 1
         })
 
+        console.log(gitCheckoutAction)
+
         // create build action
-        var buildAction = new codepipelineactions.CodeBuildBuildAction({
+        var buildAction = new codepipelineactions.CodeBuildAction({
             actionName: "Build",
             project: this.codebuildProject,
-            inputArtifact: gitCheckoutAction.outputArtifact,
-            outputArtifactName: "BuildArtifact",
+            input: gitCheckoutAction.outputs[0],
+            output: new codepipeline.Artifact("BuildArtifact"),
         })
 
         // create deploy action
         var deployAction = new codepipelineactions.S3DeployAction({
             actionName: "Deploy",
-            inputArtifact: buildAction.outputArtifact,
+            input: buildAction.outputs[0],
             extract: true,
             bucket: contentBucket
         })
@@ -238,23 +239,21 @@ export class WebsitePipelineStack extends cdk.Stack {
         pipelineRole.grant(new iam.ServicePrincipal('lambda.amazonaws.com'))
         pipelineRole.attachInlinePolicy(policyStatementsForCodepipeline)
 
-        // github webhook
-        new codepipeline.CfnWebhook(this, props.stage.toString() + "-" + props.projectName + "-githubWebhook", {
-            authentication: "GITHUB_HMAC",
-            authenticationConfiguration: {
-                secretToken: secretsmanager.Secret.import(scope, 'github-token', {
-                    secretArn: props.githubOauthTokenArn,
-                }).secretJsonValue('github-token').toString()
-            },
-            registerWithThirdParty: true,
-            filters: [{
-                jsonPath: "$.ref",
-                matchEquals: "refs/heads/{Branch}",
-            }],
-            targetPipeline: this.pipeline.pipelineName,
-            targetAction: gitCheckoutAction.actionName,
-            targetPipelineVersion: 1
-        });
+        // // github webhook
+        // new codepipeline.CfnWebhook(this, props.stage.toString() + "-" + props.projectName + "-githubWebhook", {
+        //     authentication: "GITHUB_HMAC",
+        //     authenticationConfiguration: {
+        //         secretToken: githubWebhook.secretJsonValue("secret").toString()
+        //     },
+        //     registerWithThirdParty: true,
+        //     filters: [{
+        //         jsonPath: "$.ref",
+        //         matchEquals: "refs/heads/{Branch}",
+        //     }],
+        //     targetPipeline: this.pipeline.pipelineName,
+        //     targetAction: gitCheckoutAction.actionName,
+        //     targetPipelineVersion: 1
+        // });
 
     }
 
