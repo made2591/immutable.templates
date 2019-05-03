@@ -20,7 +20,6 @@ interface WebsitePipelineStackProps extends cdk.StackProps {
     githubRepositoryUsername: string;
     githubRepositoryName: string;
     githubOauthTokenArn: string;
-    githubOauthToken: string;
     contentCDN: cloudfront.CloudFrontWebDistribution;
     buildImage: string;
 }
@@ -63,8 +62,6 @@ export class WebsitePipelineStack extends cdk.Stack {
             pollForSourceChanges: false,
             runOrder: 1
         })
-
-        console.log(gitCheckoutAction)
 
         // create build action
         var buildAction = new codepipelineactions.CodeBuildAction({

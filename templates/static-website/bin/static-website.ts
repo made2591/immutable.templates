@@ -48,7 +48,6 @@ console.log('debug', process.env.STAGE, stage)
 const cdnCertificateArn = process.env.CDN_CERTIFICATE_ARN || ""
 const codeBuildImage = process.env.CODE_BUILD_IMAGE || ""
 const domainName = process.env.DOMAIN_NAME || ""
-const githubOauthToken = process.env.GITHUB_OAUTH_TOKEN || "" // key of token: "github-token"
 const githubOauthTokenArn = process.env.GITHUB_OAUTH_TOKEN_ARN || "" // key of token: "github-token"
 const githubRepositoryName = process.env.GITHUB_REPOSITORY_NAME || ""
 const githubRepositoryOwnerUsername = process.env.GITHUB_REPOSITORY_OWNER_USERNAME || ""
@@ -72,7 +71,6 @@ new WebsitePipelineStack(app, 'dev-pipeline-madeddu-xyz', {
     githubRepositoryName: githubRepositoryName,
     artifactBucket: storageStack.artifactBucketRef,
     contentBucket: storageStack.contentBucketRef,
-    githubOauthToken: githubOauthToken,
     githubOauthTokenArn: githubOauthTokenArn,
     contentCDN: storageStack.contentCDNRef
 });
