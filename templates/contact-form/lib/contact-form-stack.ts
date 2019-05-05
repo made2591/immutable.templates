@@ -36,7 +36,7 @@ export class ContactFormStack extends cdk.Stack {
     var apigatewayPolicyStatement = new iam.PolicyStatement(PolicyStatementEffect.Allow)
     apigatewayPolicyStatement.addActions(
       'dynamodb:PutItem',
-      'dynamodb:DescribeTable',
+      'dynamodb:DescribeTable'
     )
     apigatewayPolicyStatement.addResources(
       this.contactstable.tableArn
@@ -93,7 +93,7 @@ export class ContactFormStack extends cdk.Stack {
         credentialsRole: apigatewayRole,
         requestTemplates: {
           "application/json": "{\
-            \"TableName\": \""+ props.stage.toString() + '-contacts-table' + "\",\
+            \"TableName\": \""+ this.contactstable.tableName + "\",\
             \"Item\": {\
               \""+ props.partitionKey + "\": {\
                 \"S\": \"$context.requestId\"\
