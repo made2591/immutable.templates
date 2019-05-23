@@ -170,7 +170,7 @@ export class ContactFormStack extends cdk.Stack {
       this.contactstable.tableStreamArn
     );
 
-    // create lambda policy statement for dynamo
+    // create lambda policy statement for sns
     var lambdaSNSPolicyStatement = new iam.PolicyStatement(PolicyStatementEffect.Allow)
     lambdaSNSPolicyStatement.addActions(
       'sns:*',
@@ -179,7 +179,7 @@ export class ContactFormStack extends cdk.Stack {
       this.snstopic.topicArn
     );
 
-    // create invalidation lambda
+    // create sns lambda
     this.snslambda = new lambda.Function(this, props.stage.toString() + "-contacts-sns", {
       runtime: lambda.Runtime.NodeJS810,
       handler: 'index.handler',
