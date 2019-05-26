@@ -4,20 +4,22 @@ import apigateway = require('@aws-cdk/aws-apigateway');
 import iam = require("@aws-cdk/aws-iam");
 import lambda = require("@aws-cdk/aws-lambda");
 import s3 = require("@aws-cdk/aws-s3");
+import sqs = require('@aws-cdk/aws-sqs');
 
 import { Stage } from '../lib/stage-env/stage-env';
 
 import { BucketEncryption } from "@aws-cdk/aws-s3";
 import { PolicyStatementEffect } from '@aws-cdk/aws-iam';
 
-interface UploadFormStackProps extends cdk.StackProps {
+export interface UploadFormStackProps extends cdk.StackProps {
   stage: Stage;
 }
 
 export interface UploadFormStack extends cdk.Stack {
   uploadApiAuthorizer: apigateway.RestApi;
-  contentBucketRef: s3.BucketProps;
+  contentBucket: s3.Bucket;
   s3AuthLambda: lambda.Function;
+  sqsQueue?: sqs.QueueBase;
 }
 
 export class UploadFormStack extends cdk.Stack {
@@ -25,19 +27,19 @@ export class UploadFormStack extends cdk.Stack {
     super(scope, id, props);
 
     // create content s3 bucket
-    const contentBucket = new s3.Bucket(this, props.stage.toString() + "-logging", {
+    this.contentBucket = new s3.Bucket(this, props.stage.toString() + "-logging", {
       encryption: BucketEncryption.S3Managed,
       publicReadAccess: false
     })
-    this.contentBucketRef = contentBucket.export();
 
-    // create lambda policy statement for s3
+    // create lambda policy statement for operating over s3
     var lambdaS3PolicyStatement = new iam.PolicyStatement(PolicyStatementEffect.Allow)
     lambdaS3PolicyStatement.addActions(
-      's3:PutObject'
+      's3:PutObject',
+      's3:GetObject'
     )
     lambdaS3PolicyStatement.addResources(
-      contentBucket.bucketArn + "/*"
+      this.contentBucket.bucketArn + "/*"
     );
 
     // create s3 authorizer lambda
@@ -46,7 +48,7 @@ export class UploadFormStack extends cdk.Stack {
       handler: 'index.handler',
       code: lambda.Code.asset("lib/s3-authorizer"),
       environment: {
-        "S3_BUCKET": contentBucket.bucketName,
+        "S3_BUCKET": this.contentBucket.bucketName
       },
       initialPolicy: [lambdaS3PolicyStatement]
     })

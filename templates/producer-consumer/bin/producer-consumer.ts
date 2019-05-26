@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 import 'source-map-support/register';
 import cdk = require('@aws-cdk/cdk');
-import { UploadFormStack } from '../lib/upload-form-stack';
-
+import { ProducerConsumerStack } from '../lib/producer-consumer-stack';
 import { Stage } from '../lib/stage-env/stage-env';
 
 const app = new cdk.App();
@@ -27,7 +26,7 @@ switch (process.env.STAGE) {
     }
 }
 
-new UploadFormStack(app, 'UploadFormStack', {
+new ProducerConsumerStack(app, 'ProducerConsumerStack', {
     stage: stage
 });
 

@@ -1,8 +1,8 @@
 {
-    "name": "upload-form",
+    "name": "producer-consumer",
     "version": "0.1.0",
     "bin": {
-        "upload-form": "bin/upload-form.js"
+        "producer-consumer": "bin/producer-consumer.js"
     },
     "scripts": {
         "build": "tsc",
