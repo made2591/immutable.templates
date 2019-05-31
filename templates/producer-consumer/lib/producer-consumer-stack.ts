@@ -26,8 +26,15 @@ export class ProducerConsumerStack extends UploadFormStack {
     });
 
     // create sqs queue
-    this.sqsQueue = new sqs.Queue(this, props.stage.toString() + "-sqs-queue", {
-      retentionPeriodSec: 1209600
+    this.sqsQueue = new sqs.Queue(this, props.stage.toString() + "-sqs-content-queue", {
+      retentionPeriodSec: 1209600,
+      visibilityTimeoutSec: 360,
+      deadLetterQueue: {
+        queue: new sqs.Queue(this, props.stage.toString() + "-sqs-dead-queue", {
+          retentionPeriodSec: 1209600
+        }),
+        maxReceiveCount: 5
+      }
     });
 
     // create sqs policy statement to allow cloudwatch pushing the message
@@ -44,7 +51,9 @@ export class ProducerConsumerStack extends UploadFormStack {
     s3SQSStatement.addAnyPrincipal()
     s3SQSStatement.addCondition("ArnLike", { "aws:SourceArn": this.contentBucket.bucketArn })
 
-    this.contentBucket.addObjectCreatedNotification(this.sqsQueue)
+    this.contentBucket.addObjectCreatedNotification(this.sqsQueue, {
+      prefix: "input/"
+    })
 
   }
 }

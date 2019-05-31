@@ -185,7 +185,7 @@ export class ContactFormStack extends cdk.Stack {
       handler: 'index.handler',
       code: lambda.Code.asset("lib/sns-lambda"),
       environment: {
-          "TOPIC_ARN": this.snstopic.topicArn,
+        "TOPIC_ARN": this.snstopic.topicArn,
       },
       initialPolicy: [lambdaDynamoPolicyStatement, lambdaSNSPolicyStatement, lambdaDynamoStreamPolicyStatement]
     })

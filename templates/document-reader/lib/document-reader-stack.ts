@@ -89,6 +89,7 @@ export class DocumentReaderStack extends ProducerConsumerStack {
       runtime: lambda.Runtime.NodeJS810,
       handler: 'index.handler',
       code: lambda.Code.asset("/Users/matteo/immutable.templates/templates/document-reader/lib/worker-lambda"),
+      timeout: 60,
       environment: {
         "DYNAMO_TABLE": this.parsedDocument.tableName,
         "CONTENT_BUCKET": this.contentBucket.bucketName
@@ -103,10 +104,21 @@ export class DocumentReaderStack extends ProducerConsumerStack {
     })
 
     // create event source
-    new lambda.EventSourceMapping(this, props.stage.toString() + "-worker-lambda-event", {
+    new lambda.EventSourceMapping(this, props.stage.toString() + "-worker-lambda-source", {
       eventSourceArn: this.sqsQueue.queueArn,
-      target: this.workerLambda
+      target: this.workerLambda,
     });
+
+    // // create sqs policy statement to allow lambda delete of the message
+    // var s3SQSStatement = new iam.PolicyStatement(PolicyStatementEffect.Allow)
+    // s3SQSStatement.addActions(
+    //   "sqs:DeleteMessage",
+    // )
+    // s3SQSStatement.addResources(
+    //   this.sqsQueue.queueArn
+    // );
+    // s3SQSStatement.addAnyPrincipal()
+    // s3SQSStatement.addCondition("ArnLike", { "aws:SourceArn": this.workerLambda.functionArn })
 
   }
 }
