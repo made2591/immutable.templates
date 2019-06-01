@@ -14,11 +14,11 @@ The Document Reader stack let you deploy a serverless infrastructure to build OC
 
 This stack inherits from the [Producer/Consumer](https://github.com/made2591/immutable.templates/templates/producer-consumer) stack the same logic regarding the request of URL and pushing of the message: the extension is around an Lambda that act as a *consumer* of the object uploaded and by using Rekognition and Polly create speach of text recognized in the images. Below a schema of the stack as is:
 
-![architecture_schema](/templates/contact-form/architecture.png)
+![architecture_schema](/templates/document-reader/architecture.png)
 
 Another schema with the parts in common with the [Producer/Consumer](https://github.com/made2591/immutable.templates/templates/producer-consumer) and the [Upload Form](https://github.com/made2591/immutable.templates/templates/upload-form) stacks.
 
-![architecture_schema](/templates/contact-form/architecture-inherit.png)
+![architecture_schema](/templates/document-reader/architecture-inherit.png)
 
 A blog post is available [here](https://madeddu.xyz/posts/serverless-ocr/).
 

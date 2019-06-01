@@ -6,7 +6,7 @@ The Producer / Consumer stack let you deploy a serverless infrastructure followi
 
 This stack inherits from the [Upload Form](https://github.com/made2591/immutable.templates/templates/upload-form) stack the same logic regarding the request of URL: the extension is around an SQS notification that can be used to trigger a consumer action after the upload of a document on S3. Below a schema of the stack with highlight of the common part. The only missing element is a Dead Letter Queue attached to the SQS Queue for troubleshooting of errors. Everything else remains untouched.
 
-![architecture_schema](/templates/contact-form/architecture.png)
+![architecture_schema](/templates/producer-consumer/architecture.png)
 
 A blog post is available [here](https://madeddu.xyz/posts/producer-consumer/).
 

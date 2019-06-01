@@ -6,7 +6,7 @@ The Upload Form stack let you deploy the serverless infrastructure required to b
 
 If you want to provide an endpoint to upload object, you can leverage the S3 service easily. Furthermore, with a pre-signed a URL you can give to someone access to the object identified in the URL, provided that the creator of the pre-signed URL has the permissions to access that object. That is, if you receive a pre-signed URL to upload an object, you can upload the object only if the creator of the pre-signed URL has the necessary permissions to upload that object: a simple Lambda will provide this URL to the final users. The diagram below shows the scenario:
 
-![architecture_schema](/templates/contact-form/architecture.png)
+![architecture_schema](/templates/upload-form/architecture.png)
 
 A blog post is available [here](https://madeddu.xyz/posts/uploader-stack/).
 
