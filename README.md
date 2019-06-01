@@ -48,7 +48,7 @@ Just as any other CDK stack, this are the main commands that can help you with t
 
 ## Contributing
 
-Please read [CONTRIBUTING.md](https://github.com/made2591/immutable.templates/CONTRIBUTING.md) for details on how to contact me.
+Please read [CONTRIBUTING.md](https://github.com/made2591/immutable.templates/blob/master/CONTRIBUTING.md) for details on how to contact me.
 
 ## Authors
 
