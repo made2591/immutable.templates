@@ -5,15 +5,15 @@ Immutable templates contains a collection of CDK templates. The respective Cloud
 ## Available Arhictectures
 The available architectures are the following:
 
-- [Static Website](https://github.com/made2591/immutable.templates/blob/master/templates/static-website/README.md): this stack creates a static site hosted on [Amazon S3](https://aws.amazon.com/s3/), served throught the help of [Cloudfront](https://aws.amazon.com/cloudfront/) and shipped with CI/CD powered by [Codepipeline](https://aws.amazon.com/codepipeline/)
-- [Contact Form](https://github.com/made2591/immutable.templates/blob/master/templates/contact-form/README.md): todo
-- [Upload Form](https://github.com/made2591/immutable.templates/blob/master/templates/upload-form/README.md): todo
-- [Producer/Consumer](https://github.com/made2591/immutable.templates/blob/master/templates/producer-consumer/README.md): todo
-- [Document Reader](https://github.com/made2591/immutable.templates/blob/master/templates/document-reader/README.md): todo
+- [Static Website](https://github.com/made2591/immutable.templates/blob/master/templates/static-website/README.md): creates a static site hosted on [AWS Simple Storage Service](https://aws.amazon.com/s3/), served throught the help of [AWS Cloudfront](https://aws.amazon.com/cloudfront/) and shipped with CI/CD powered by [AWS Codepipeline](https://aws.amazon.com/codepipeline/).
+- [Contact Form](https://github.com/made2591/immutable.templates/blob/master/templates/contact-form/README.md): creates the serverless infrastructure required to build a contact form by using [AWS API Gateway](https://aws.amazon.com/api-gateway/), [AWS DynamoDB](https://aws.amazon.com/dynamodb/) with DynamoStream and [AWS Simple Notification Service](https://aws.amazon.com/it/sns/).
+- [Upload Form](https://github.com/made2591/immutable.templates/blob/master/templates/upload-form/README.md): The Upload Form stack let you deploy the serverless infrastructure required to build an upload form by using [AWS API Gateway](https://aws.amazon.com/api-gateway/), [AWS Lambda](https://aws.amazon.com/lambda/) and [AWS Simple Storage Service](https://aws.amazon.com/s3/).
+- [Producer/Consumer](https://github.com/made2591/immutable.templates/blob/master/templates/producer-consumer/README.md): The Producer / Consumer stack let you deploy a serverless infrastructure following the producer/consumer schema using [AWS API Gateway](https://aws.amazon.com/api-gateway/), [AWS Lambda](https://aws.amazon.com/lambda/), [AWS Simple Storage Service](https://aws.amazon.com/s3/) and [AWS Simple Queue Service](https://aws.amazon.com/sqs/).
+- [Document Reader](https://github.com/made2591/immutable.templates/blob/master/templates/document-reader/README.md): creates a serverless infrastructure to build OCR application that produce spoken text extracted from images you can provide throught REST API by using many services like [AWS API Gateway](https://aws.amazon.com/api-gateway/), [AWS Lambda](https://aws.amazon.com/lambda/), [AWS Simple Storage Service](https://aws.amazon.com/s3/), [AWS Simple Queue Service](https://aws.amazon.com/sqs/), [AWS DynamoDB](https://aws.amazon.com/dynamodb/), [AWS Rekognition](https://aws.amazon.com/rekognition/) and [AWS Polly](https://aws.amazon.com/polly/), to provide text-to-speach functionality;
 
 ## Getting Started
 
-To use the stack and modify them, just clone the repository and move to the desired stack folder under the `templates` directory in the root of the repository. For example, if you are interested in the static-website stack, just do the following:
+To use the stack and modify them, just clone the repository and move to the desired stack folder under the `templates` directory in the root of the repository. For example, if you are interested in the `static-website` stack, just do the following:
 
 ```
 git clone https://github.com/made2591/immutable.templates
@@ -52,8 +52,12 @@ Please read [CONTRIBUTING.md](https://github.com/made2591/immutable.templates/CO
 
 ## Authors
 
+Almost all the stacks proposed in this repository, and their implementation, are deeply discussed between people below:
+
 * **Matteo Madeddu** - *Design, Implementation* - [Github](https://github.com/made2591/), [LinkedIn](https://www.linkedin.com/in/mmadeddu/)
 * *Guido Nebiolo* - *Design, Implementation* - [Github](https://github.com/guidonebiolo/), [LinkedIn](https://www.linkedin.com/in/guidonebiolo/)
+
+Thank you for your interest!
 
 ## License
 
