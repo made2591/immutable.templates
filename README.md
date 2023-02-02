@@ -1,6 +1,6 @@
 # immutable.templates
 
-Immutable templates contains a collection of CDK templates. The respective CloudFormation templates will be stored in [here](https://github.com/GuidoNebiolo/aws-architectures) as soon as they will be ready to be shipped.
+Immutable templates contains a collection of CDK templates. The respective CloudFormation templates will be stored in [here](https://github.com/GuidoNebiolo/aws-architectures) as soon as they will be ready to be shipped - updated
 
 ## Available Arhictectures
 The available architectures are the following:
